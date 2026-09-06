@@ -7,6 +7,7 @@ import {
 } from '../lib/theme';
 import type { Alert, AlertType, AlertStatus } from '../types';
 import { fetchAlerts, updateAlertStatus } from '../lib/api';
+import { AdminAuthModal } from '../components/modals/AdminAuthModal';
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -73,21 +74,17 @@ interface IncidentRowProps {
   isExpanded: boolean;
   onToggle: () => void;
   headersCount: number;
+  onStatusRequest: (alertId: string, newStatus: AlertStatus) => void;
 }
 
-function IncidentRow({ alert, index, isExpanded, onToggle, headersCount }: IncidentRowProps) {
+function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatusRequest }: IncidentRowProps) {
   const vis = ALERT_VISUALS[alert.type];
   const statusVis = STATUS_VISUALS[alert.status];
-  const { flyTo, setSelectedAlertId, setCurrentPage, updateAlertStatus: localUpdate } = useAppStore();
+  const { flyTo, setSelectedAlertId, setCurrentPage } = useAppStore();
 
-  const handleStatusChange = async (e: React.MouseEvent, newStatus: AlertStatus) => {
+  const handleStatusChange = (e: React.MouseEvent, newStatus: AlertStatus) => {
     e.stopPropagation();
-    try {
-      await updateAlertStatus(alert.id, newStatus);
-      localUpdate(alert.id, newStatus);
-    } catch (err) {
-      console.error('Failed to update status', err);
-    }
+    onStatusRequest(alert.id, newStatus);
   };
 
   const handleViewOnMap = (e: React.MouseEvent) => {
@@ -355,6 +352,7 @@ export function IncidentsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('road');
   const [subFilter, setSubFilter] = useState<AlertType | 'all'>('all');
   const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
+  const [authModal, setAuthModal] = useState<{ alertId: string; targetStatus: AlertStatus } | null>(null);
 
   useEffect(() => {
     setAlertsLoading(true);
@@ -515,6 +513,7 @@ export function IncidentsPage() {
                         isExpanded={expandedAlertId === alert.id}
                         onToggle={() => setExpandedAlertId(expandedAlertId === alert.id ? null : alert.id)}
                         headersCount={HEADERS.length}
+                        onStatusRequest={(alertId, newStatus) => setAuthModal({ alertId, targetStatus: newStatus })}
                       />
                     ))}
             </AnimatePresence>
@@ -522,6 +521,20 @@ export function IncidentsPage() {
         </table>
         </div>
       </div>
+
+      {/* Admin Verification Modal */}
+      {authModal && (
+        <AdminAuthModal
+          isOpen={authModal !== null}
+          onClose={() => setAuthModal(null)}
+          targetAlertId={authModal.alertId}
+          targetStatus={authModal.targetStatus}
+          onConfirm={async (_officerId) => {
+            await updateAlertStatus(authModal.alertId, authModal.targetStatus);
+            useAppStore.getState().updateAlertStatus(authModal.alertId, authModal.targetStatus);
+          }}
+        />
+      )}
     </div>
   );
 }

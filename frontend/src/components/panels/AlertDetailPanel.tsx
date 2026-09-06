@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ALERT_VISUALS,
@@ -11,6 +12,7 @@ import {
 import { updateAlertStatus } from '../../lib/api';
 import { useAppStore } from '../../store/useAppStore';
 import type { Alert, AlertStatus } from '../../types';
+import { AdminAuthModal } from '../modals/AdminAuthModal';
 
 interface AlertDetailProps {
   alert: Alert | null;
@@ -19,11 +21,11 @@ interface AlertDetailProps {
 
 export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
   const { updateAlertStatus: localUpdate } = useAppStore();
+  const [pendingStatus, setPendingStatus] = useState<AlertStatus | null>(null);
 
-  const handleAction = async (status: AlertStatus) => {
+  const handleAction = (status: AlertStatus) => {
     if (!alert) return;
-    await updateAlertStatus(alert.id, status);
-    localUpdate(alert.id, status);
+    setPendingStatus(status);
   };
 
   const vis = alert ? ALERT_VISUALS[alert.type] : null;
@@ -165,6 +167,20 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
             )}
           </div>
         </motion.div>
+      )}
+
+      {/* Admin Verification Modal */}
+      {alert && pendingStatus && (
+        <AdminAuthModal
+          isOpen={pendingStatus !== null}
+          onClose={() => setPendingStatus(null)}
+          targetAlertId={alert.id}
+          targetStatus={pendingStatus}
+          onConfirm={async (_officerId) => {
+            await updateAlertStatus(alert.id, pendingStatus);
+            localUpdate(alert.id, pendingStatus);
+          }}
+        />
       )}
     </AnimatePresence>
   );
