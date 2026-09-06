@@ -65,9 +65,9 @@ body {
 .glow-mint { box-shadow: 0 0 20px rgba(78, 242, 187, 0.35); }
 
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 6px; }
 ::-webkit-scrollbar-thumb:hover { background: #4ef2bb; }
 
 /* ─── Skeleton Shimmer ────────────────────────────────────────────────────── */

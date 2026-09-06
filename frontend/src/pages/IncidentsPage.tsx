@@ -204,7 +204,7 @@ export function IncidentsPage() {
   const HEADERS = ['Type / ID', 'Confidence', 'Bus', 'Time', 'Location', 'Plate', 'Verified', 'Status'];
 
   return (
-    <div className="flex-1 overflow-auto p-5 flex flex-col gap-4">
+    <div className="flex-1 overflow-y-auto min-h-0 p-5 flex flex-col gap-4">
 
       {/* ── Page header ── */}
       <div>
@@ -301,11 +301,12 @@ export function IncidentsPage() {
       </div>
 
       {/* ── Table ── */}
-      <div className="glass rounded-2xl overflow-hidden flex-1">
+      <div className="glass rounded-2xl overflow-hidden shrink-0 mb-10">
         {/* Coloured top accent line */}
         <div className={cn('h-0.5', activeTab === 'road' ? 'bg-gradient-to-r from-transparent via-[#4ef2bb]/80 to-transparent' : 'bg-gradient-to-r from-transparent via-white/50 to-transparent')} />
 
-        <table className="w-full">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full">
           <thead>
             <tr className="border-b border-white/[0.06]">
               {HEADERS.map((h) => (
@@ -333,6 +334,7 @@ export function IncidentsPage() {
             </AnimatePresence>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
