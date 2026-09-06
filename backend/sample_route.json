@@ -1,0 +1,12 @@
+[
+  { "lat": 28.6315, "long": 77.2167, "name": "Connaught Place" },
+  { "lat": 28.6328, "long": 77.2195, "name": "Barakhamba Road" },
+  { "lat": 28.6270, "long": 77.2300, "name": "Mandi House" },
+  { "lat": 28.6380, "long": 77.2400, "name": "ITO Junction" },
+  { "lat": 28.6180, "long": 77.2420, "name": "Pragati Maidan" },
+  { "lat": 28.6139, "long": 77.2090, "name": "India Gate Circle" },
+  { "lat": 28.6080, "long": 77.2100, "name": "Pandara Road" },
+  { "lat": 28.6050, "long": 77.1950, "name": "Sarojini Nagar" },
+  { "lat": 28.6450, "long": 77.2010, "name": "Civil Lines" },
+  { "lat": 28.6600, "long": 77.2300, "name": "Kashmere Gate ISBT" }
+]

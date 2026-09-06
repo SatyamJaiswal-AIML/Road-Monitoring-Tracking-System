@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: urbaneye_postgis
+    environment:
+      POSTGRES_USER: urbaneye
+      POSTGRES_PASSWORD: urbaneye_secure_password_2026
+      POSTGRES_DB: urbaneye_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: urbaneye_api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://urbaneye:urbaneye_secure_password_2026@db:5432/urbaneye_db
+      EDGE_API_KEY: bel_sih_edge_secret_token_2026
+    depends_on:
+      - db
+
+  edge_sim:
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    container_name: urbaneye_edge_sim
+    environment:
+      BACKEND_API_URL: http://backend:8000/alerts
+      EDGE_API_KEY: bel_sih_edge_secret_token_2026
+      BUS_ID: BUS-042
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  /* ─── Motion.dev Inspired Aesthetic (Pure Deep Pitch Black & Electric Mint / Acid Green) ─── */
+  --color-black-950: #000000;
+  --color-black-900: #080808;
+  --color-black-850: #0f0f11;
+  --color-black-800: #141416;
+  --color-black-700: #1c1c1f;
+  --color-black-600: #2a2a2e;
+
+  /* ─── Motion.dev Mint / Acid Neon Accents ─── */
+  --color-mint-400:  #4ef2bb;
+  --color-mint-500:  #2ee8aa;
+  --color-mint-600:  #1dc990;
+
+  /* ─── Crisp Monochromatic & Functional Accents ─── */
+  --color-amber-400: #f59e0b;
+  --color-rose-400:  #fb7185;
+  --color-zinc-100:  #ffffff;
+  --color-zinc-300:  #d4d4d8;
+  --color-zinc-400:  #a1a1aa;
+  --color-zinc-500:  #71717a;
+  --color-zinc-600:  #52525b;
+
+  /* ─── Typography ─── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* ─── Reset & Base ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+
+body {
+  background-color: #000000;
+  color: #ededed;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ─── Motion.dev Pitch Black Surfaces & Subtle Hairlines ─────────────────── */
+.glass {
+  background: rgba(14, 14, 16, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
+}
+
+.glass-accent {
+  border-color: rgba(78, 242, 187, 0.4);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.95), 0 0 25px rgba(78, 242, 187, 0.12);
+}
+
+/* ─── Motion.dev Dot Matrix Background Pattern ───────────────────────────── */
+.dot-matrix {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ─── Mint Text & Glow Highlights ────────────────────────────────────────── */
+.text-glow-mint { text-shadow: 0 0 16px rgba(78, 242, 187, 0.6); }
+.glow-mint { box-shadow: 0 0 20px rgba(78, 242, 187, 0.35); }
+
+/* ─── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #4ef2bb; }
+
+/* ─── Skeleton Shimmer ────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -250% center; }
+  100% { background-position:  250% center; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.02) 25%,
+    rgba(255,255,255,0.06) 50%,
+    rgba(255,255,255,0.02) 75%
+  );
+  background-size: 250% 100%;
+  animation: shimmer 1.8s ease infinite;
+}
+
+/* ─── Live Pulse ──────────────────────────────────────────────────────────── */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.3; transform: scale(0.8); }
+}
+.animate-pulse-live { animation: pulse-live 1.5s ease-in-out infinite; }
+
+/* ─── Leaflet Motion.dev High-Contrast Black Map ─────────────────────────── */
+.leaflet-container { background: #000000 !important; }
+.leaflet-control-attribution { display: none !important; }
+
+.leaflet-control-zoom a {
+  background: #0f0f11 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  font-weight: bold;
+}
+.leaflet-control-zoom a:hover {
+  background: #4ef2bb !important;
+  color: #000000 !important;
+  border-color: #4ef2bb !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #0c0c0e !important;
+  border: 1px solid #4ef2bb !important;
+  border-radius: 10px !important;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.95), 0 0 20px rgba(78, 242, 187, 0.25) !important;
+  color: #ffffff !important;
+  padding: 0 !important;
+}
+.leaflet-popup-tip { display: none !important; }
+.leaflet-popup-content { margin: 0 !important; }
+
+/* ─── Pure High-Contrast Black & White Inversion for OSM Tiles ───────────── */
+.osm-dark-tiles {
+  filter: invert(100%) grayscale(100%) brightness(72%) contrast(110%);
+}

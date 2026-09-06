@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # --- 1. PostgreSQL with PostGIS Extension ---------------------------------
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: urbaneye_postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: urbaneye
+      POSTGRES_PASSWORD: urbaneye_secure_password_2026
+      POSTGRES_DB: urbaneye_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urbaneye -d urbaneye_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --- 2. FastAPI Backend API -----------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: urbaneye_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --- 3. Edge-AI Bus Sensing Simulation ------------------------------------
+  edge_sim:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.edge
+    container_name: urbaneye_edge_sim
+    restart: "no"
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ─── 4. React Frontend (Nginx) ───────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_USE_MOCK: "false"
+    container_name: urbaneye_dashboard
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    name: urbaneye_pgdata
