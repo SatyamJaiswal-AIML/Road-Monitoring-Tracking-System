@@ -192,7 +192,8 @@ export function MapView({ alerts, heatmapPoints }: MapViewProps) {
       <MapContainer
         center={[28.6139, 77.2090]}
         zoom={13}
-        minZoom={10}
+        minZoom={3}
+        maxZoom={19}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
       >
