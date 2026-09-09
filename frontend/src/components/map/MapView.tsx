@@ -7,6 +7,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { ALERT_VISUALS, timeAgo, cn } from '../../lib/theme';
 import type { Alert, HeatmapPoint, MapView as MapViewType } from '../../types';
 
+import { AlertCameraSnapshot } from '../common/AlertCameraSnapshot';
+
 // ─── Fix leaflet default icon broken by bundlers ──────────────────────────────
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -49,15 +51,16 @@ styleEl.textContent = `
   @media(prefers-reduced-motion:reduce){[style*="markerPop"],[style*="leafletPulse"]{animation:none!important}}
   .leaflet-container { background: #0a0f1e !important; }
   .leaflet-popup-content-wrapper {
-    background: rgba(10,15,30,0.95) !important;
-    border: 1px solid rgba(0,212,255,0.3) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 16px rgba(0,212,255,.15) !important;
+    background: rgba(10,15,30,0.96) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 12px 40px rgba(0,0,0,.7), 0 0 20px rgba(0,212,255,.12) !important;
     color: #e2e8f0 !important;
     padding: 0 !important;
+    overflow: hidden !important;
   }
   .leaflet-popup-tip { display:none !important; }
-  .leaflet-popup-content { margin: 0 !important; }
+  .leaflet-popup-content { margin: 0 !important; width: 260px !important; }
   .leaflet-control-zoom a {
     background: rgba(10,15,30,0.9) !important;
     border-color: rgba(255,255,255,0.1) !important;
@@ -144,24 +147,65 @@ function AlertPopup({ alert }: { alert: Alert }) {
   const vis = ALERT_VISUALS[alert.type];
   const conf = Math.round(alert.confidence * 100);
   const confColor = conf >= 90 ? '#22c55e' : conf >= 75 ? '#f59e0b' : '#ef4444';
+  const { setSelectedAlertId } = useAppStore();
 
   return (
-    <div style={{ padding: '12px 14px', minWidth: 200, fontFamily: 'Inter,sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 16 }}>{vis.icon}</span>
-        <span style={{ color: vis.color, fontWeight: 600, fontSize: 13 }}>{vis.label}</span>
+    <div style={{ padding: '12px 14px', width: 260, fontFamily: 'Inter,sans-serif' }}>
+      {/* Title */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 16 }}>{vis.icon}</span>
+          <span style={{ color: vis.color, fontWeight: 700, fontSize: 13 }}>{vis.label}</span>
+        </div>
+        <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{alert.id}</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <Row label="Confidence" value={`${conf}%`} valueColor={confColor} />
-        <Row label="Bus" value={alert.bus_id} mono />
+
+      {/* Edge Camera Photo Snapshot */}
+      <div style={{ marginBottom: 8 }}>
+        <AlertCameraSnapshot alert={alert} compact />
+      </div>
+
+      {/* Telemetry info */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+        <Row label="AI Confidence" value={`${conf}%`} valueColor={confColor} />
+        <Row label="Bus Unit" value={alert.bus_id} mono />
         <Row label="Time" value={timeAgo(alert.timestamp)} />
-        {alert.meta.plate_number && <Row label="Plate" value={alert.meta.plate_number} valueColor="#f59e0b" mono />}
+        {alert.meta.plate_number && <Row label="Plate (ANPR)" value={alert.meta.plate_number} valueColor="#f59e0b" mono />}
         {alert.meta.vehicle_count && <Row label="Vehicles" value={String(alert.meta.vehicle_count)} />}
-        {alert.meta.verified_by_bus_count && <Row label="Verified by" value={`${alert.meta.verified_by_bus_count} buses`} />}
-        <div style={{ marginTop: 6, fontSize: 10, color: '#475569', fontFamily: 'monospace' }}>
+        {alert.meta.verified_by_bus_count && (
+          <Row
+            label="Fleet Consensus"
+            value={`Verified by ${alert.meta.verified_by_bus_count} buses`}
+            valueColor="#38bdf8"
+          />
+        )}
+        <div style={{ marginTop: 3, fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
           {alert.lat.toFixed(4)}°N {alert.long.toFixed(4)}°E
         </div>
       </div>
+
+      {/* Action Button */}
+      <button
+        type="button"
+        onClick={() => setSelectedAlertId(alert.id)}
+        style={{
+          width: '100%',
+          padding: '7px 0',
+          borderRadius: 8,
+          background: `${vis.color}22`,
+          border: `1px solid ${vis.color}55`,
+          color: vis.color,
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: 'pointer',
+          textAlign: 'center',
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = `${vis.color}3a`)}
+        onMouseLeave={(e) => (e.currentTarget.style.background = `${vis.color}22`)}
+      >
+        Inspect & Take Action →
+      </button>
     </div>
   );
 }

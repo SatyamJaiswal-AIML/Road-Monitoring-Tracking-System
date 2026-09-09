@@ -13,6 +13,7 @@ import { updateAlertStatus } from '../../lib/api';
 import { useAppStore } from '../../store/useAppStore';
 import type { Alert, AlertStatus } from '../../types';
 import { AdminAuthModal } from '../modals/AdminAuthModal';
+import { AlertCameraSnapshot } from '../common/AlertCameraSnapshot';
 
 interface AlertDetailProps {
   alert: Alert | null;
@@ -94,6 +95,18 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
                   style={{ background: vis.color }}
                 />
               </div>
+            </div>
+
+            {/* Edge Camera Frame Snapshot */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between items-center text-[11px] font-medium">
+                <span className="text-white/50">Edge Dashcam Snapshot</span>
+                <span className="text-emerald-400 font-mono text-[10px] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  AI CAPTURE
+                </span>
+              </div>
+              <AlertCameraSnapshot alert={alert} />
             </div>
 
             {/* Info Grid */}
