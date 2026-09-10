@@ -148,35 +148,69 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
               )}
             </div>
 
-            {/* Info Grid */}
-            <div className="grid grid-cols-2 gap-2.5 bg-black/20 p-3 rounded-xl border border-white/[0.04]">
-              {[
-                { label: 'Bus Unit', value: alert.bus_id, mono: true },
-                { label: 'Detection', value: timeAgo(alert.timestamp), mono: false },
-                { label: 'GPS Coords', value: formatGPS(alert.lat, alert.long), mono: true, span: 2 },
-                ...(alert.meta.plate_number
-                  ? [{ label: 'License Plate (ANPR)', value: alert.meta.plate_number, mono: true, span: 2, highlight: true }]
-                  : []),
-                ...(alert.meta.vehicle_count
-                  ? [{ label: 'Estimated Vehicles', value: `${alert.meta.vehicle_count} units`, mono: false }]
-                  : []),
-                ...(alert.meta.verified_by_bus_count
-                  ? [{ label: 'Fleet Consensus', value: `Verified by ${alert.meta.verified_by_bus_count} buses`, mono: false }]
-                  : []),
-              ].map(({ label, value, mono, span, highlight }: any) => (
-                <div key={label} className={cn('flex flex-col gap-0.5', span === 2 ? 'col-span-2' : '')}>
-                  <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">{label}</span>
-                  <span
-                    className={cn(
-                      'text-xs font-medium',
-                      mono && 'font-mono',
-                      highlight ? 'text-amber-400 font-bold tracking-wider' : 'text-white/85'
-                    )}
-                  >
-                    {value}
-                  </span>
+            {/* Info Grid with Big Colorful Square PDF Button under Detection */}
+            <div className="grid grid-cols-2 gap-3 bg-black/30 p-3 rounded-xl border border-white/[0.08]">
+              {/* Left Column: Telemetry Specs */}
+              <div className="flex flex-col justify-between gap-2.5">
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">Bus Unit</span>
+                  <div className="text-xs font-mono font-medium text-white/90">{alert.bus_id}</div>
                 </div>
-              ))}
+
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">GPS Coords</span>
+                  <div className="text-xs font-mono font-medium text-sky-400">{formatGPS(alert.lat, alert.long)}</div>
+                </div>
+
+                {alert.meta.plate_number && (
+                  <div>
+                    <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">Plate (ANPR)</span>
+                    <div className="text-xs font-mono font-bold text-amber-400">{alert.meta.plate_number}</div>
+                  </div>
+                )}
+
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">Fleet Consensus</span>
+                  <div className="text-xs font-medium text-emerald-400">
+                    Verified by {alert.meta.verified_by_bus_count || 1} buses
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Detection + Big Colorful Square PDF Button */}
+              <div className="flex flex-col gap-2">
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">Detection</span>
+                  <div className="text-xs font-medium text-white/85">{timeAgo(alert.timestamp)}</div>
+                </div>
+
+                {/* Big Square Colourful Eye-Catching PDF Button */}
+                <motion.button
+                  onClick={handleExportPdf}
+                  disabled={isExporting}
+                  whileHover={{ scale: 1.03, y: -2 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex-1 min-h-[95px] rounded-xl relative overflow-hidden flex flex-col items-center justify-center p-2.5 text-center cursor-pointer transition-all border-2 border-amber-400/60 hover:border-amber-300 bg-gradient-to-br from-amber-500/25 via-orange-500/20 to-emerald-500/25 hover:from-amber-500/35 hover:to-emerald-500/35 shadow-[0_0_25px_rgba(245,158,11,0.3)] group disabled:opacity-50"
+                  title="1-Click Official PWD Road Repair Tender PDF"
+                >
+                  <span className="text-2xl mb-1 filter drop-shadow">
+                    {isExporting ? '⏳' : '📑'}
+                  </span>
+
+                  <span className="text-[11px] font-bold text-white tracking-wide leading-tight group-hover:text-amber-200 transition-colors">
+                    {isExporting ? 'Generating...' : 'PWD WORK ORDER'}
+                  </span>
+
+                  <span className="text-[9px] font-mono text-amber-300 font-semibold tracking-wider mt-0.5">
+                    1-CLICK PDF TENDER
+                  </span>
+
+                  <div className="mt-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-black/50 border border-amber-400/40 text-[8px] font-mono text-amber-300">
+                    <span className="w-1 h-1 rounded-full bg-emerald-400 animate-ping" />
+                    <span>SLA 48H • IRC:82</span>
+                  </div>
+                </motion.button>
+              </div>
             </div>
 
             {/* Status Pill */}
@@ -195,47 +229,28 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
             </div>
           </div>
 
-          {/* Action & Export Buttons */}
-          <div className="px-5 pb-4 flex flex-col gap-2">
-            <div className="flex gap-2.5">
-              {alert.status === 'open' && (
-                <motion.button
-                  onClick={() => handleAction('acknowledged')}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-sm"
-                >
-                  Acknowledge Alert
-                </motion.button>
-              )}
-              {alert.status !== 'resolved' && (
-                <motion.button
-                  onClick={() => handleAction('resolved')}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-sm"
-                >
-                  ✓ Mark Resolved
-                </motion.button>
-              )}
-            </div>
-
-            {/* 1-Click PWD Work Order Tender PDF */}
-            <motion.button
-              onClick={handleExportPdf}
-              disabled={isExporting}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-2 px-3 rounded-xl text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] text-white/80 hover:text-white border border-white/[0.08] hover:border-amber-400/40 flex items-center justify-between transition-all cursor-pointer disabled:opacity-50"
-            >
-              <div className="flex items-center gap-2">
-                <span>{isExporting ? '⏳' : '📄'}</span>
-                <span>{isExporting ? 'Generating Official PWD PDF...' : '1-Click PWD Work Order PDF'}</span>
-              </div>
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                SLA 48h
-              </span>
-            </motion.button>
+          {/* Action Buttons with Framer Motion Tap/Hover effects */}
+          <div className="px-5 pb-4 flex gap-2.5">
+            {alert.status === 'open' && (
+              <motion.button
+                onClick={() => handleAction('acknowledged')}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-sm"
+              >
+                Acknowledge Alert
+              </motion.button>
+            )}
+            {alert.status !== 'resolved' && (
+              <motion.button
+                onClick={() => handleAction('resolved')}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-sm"
+              >
+                ✓ Mark Resolved
+              </motion.button>
+            )}
           </div>
         </motion.div>
       )}
