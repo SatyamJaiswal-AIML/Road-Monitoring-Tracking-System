@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { IncidentsPage } from './pages/IncidentsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FleetPage } from './pages/FleetPage';
+import { VideoAnalysisPage } from './pages/VideoAnalysisPage';
 import { useAppStore } from './store/useAppStore';
 import { MOCK_SUMMARY } from './data/mockData';
 
@@ -19,6 +20,7 @@ export default function App() {
       case 'incidents':  return <IncidentsPage />;
       case 'analytics':  return <AnalyticsPage />;
       case 'fleet':      return <FleetPage />;
+      case 'video':      return <VideoAnalysisPage />;
     }
   };
 

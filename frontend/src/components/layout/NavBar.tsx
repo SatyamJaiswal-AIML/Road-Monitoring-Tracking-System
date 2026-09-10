@@ -5,10 +5,11 @@ import type { DashboardPage } from '../../types';
 import { ALERT_VISUALS, timeAgo, cn } from '../../lib/theme';
 
 const NAV_ITEMS: { page: DashboardPage; label: string; icon: string }[] = [
-  { page: 'dashboard', label: 'Dashboard', icon: '⬡' },
-  { page: 'incidents', label: 'Incidents', icon: '🚨' },
-  { page: 'analytics', label: 'Analytics', icon: '📊' },
-  { page: 'fleet',     label: 'Fleet',     icon: '🚌' },
+  { page: 'dashboard', label: 'Dashboard',    icon: '🗺' },
+  { page: 'incidents', label: 'Incidents',    icon: '🚨' },
+  { page: 'analytics', label: 'Analytics',   icon: '📊' },
+  { page: 'fleet',     label: 'Fleet',       icon: '🚌' },
+  { page: 'video',     label: 'AI Video Analysis', icon: '🎥' },
 ];
 
 // ─── Sidebar (Motion.dev Pitch Black & Mint Pill) ───────────────────────────

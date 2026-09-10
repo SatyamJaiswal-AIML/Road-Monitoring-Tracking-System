@@ -46,6 +46,14 @@ export const ALERT_LABEL_MAP: Record<AlertType, {
     label: 'Hit & Run / Collision with ANPR',
     accentColor: '#dc2626',
   },
+  speeding_vehicle: {
+    label: 'Speeding Vehicle Detected',
+    accentColor: '#f97316',
+  },
+  rash_driving: {
+    label: 'Dangerous / Rash Driving Pattern',
+    accentColor: '#ef4444',
+  },
 };
 
 export function getAlertLabel(alert: Alert) {

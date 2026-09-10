@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
 
     # Security & CORS Settings
-    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173,http://localhost:3000"
     RATE_LIMIT_PER_MINUTE: int = 120
     REPLAY_WINDOW_MINUTES: int = 30
     DPDP_ANONYMIZE_PLATES: bool = True

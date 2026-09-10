@@ -10,8 +10,11 @@ shapely>=2.0.3
 python-dotenv>=1.0.1
 httpx>=0.27.0
 numpy>=1.26.4
+# Video / Computer Vision
 opencv-python-headless>=4.9.0.80
 ultralytics>=8.1.0
 easyocr>=1.7.1
 torch
 torchvision
+# File upload support
+python-multipart>=0.0.9
