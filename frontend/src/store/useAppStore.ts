@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   Alert, AlertStatus, AnalyticsSummary,
   FilterType, MapView, DashboardPage, ReplayState, PlaybackSpeed,
+  VideoAnalysisResult,
 } from '../types';
 
 // ─── App store ────────────────────────────────────────────────────────────────
@@ -48,6 +49,14 @@ interface AppStore {
   setReplayTime: (t: number) => void;
   setReplaySpeed: (s: PlaybackSpeed) => void;
   resetReplay: () => void;
+
+  // ── Video Analysis (NEW) ──────────────────────────────────────────────
+  videoResult: VideoAnalysisResult | null;
+  setVideoResult: (r: VideoAnalysisResult | null) => void;
+  isVideoAnalyzing: boolean;
+  setVideoAnalyzing: (b: boolean) => void;
+  /** Merge video-detected alerts into the main alerts list */
+  mergeVideoAlerts: (alerts: Alert[]) => void;
 }
 
 const DEFAULT_REPLAY: ReplayState = {
@@ -107,4 +116,16 @@ export const useAppStore = create<AppStore>((set) => ({
   setReplaySpeed: (speed) =>
     set((s) => ({ replay: { ...s.replay, speed } })),
   resetReplay: () => set({ replay: DEFAULT_REPLAY }),
+
+  // ── Video Analysis ────────────────────────────────────────────────────
+  videoResult: null,
+  setVideoResult: (r) => set({ videoResult: r }),
+  isVideoAnalyzing: false,
+  setVideoAnalyzing: (b) => set({ isVideoAnalyzing: b }),
+  mergeVideoAlerts: (newAlerts) =>
+    set((s) => {
+      const existingIds = new Set(s.alerts.map((a) => a.id));
+      const fresh = newAlerts.filter((a) => !existingIds.has(a.id));
+      return { alerts: [...fresh, ...s.alerts] };
+    }),
 }));

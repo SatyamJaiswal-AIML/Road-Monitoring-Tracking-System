@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../../store/useAppStore';
-import { ALERT_VISUALS, timeAgo, cn } from '../../lib/theme';
+import { ALERT_VISUALS, getSeverityVisual, timeAgo, cn } from '../../lib/theme';
 import type { Alert, HeatmapPoint, MapView as MapViewType } from '../../types';
 
 import { AlertCameraSnapshot } from '../common/AlertCameraSnapshot';
@@ -20,22 +20,49 @@ L.Icon.Default.mergeOptions({
 // ─── Create custom SVG div icon ───────────────────────────────────────────────
 
 function makeIcon(alert: Alert): L.DivIcon {
-  const vis = ALERT_VISUALS[alert.type];
+  const vis = ALERT_VISUALS[alert.type] ?? ALERT_VISUALS['pothole'];
+
+  // For potholes detected via video analysis, override color by severity level
+  let color = vis.color;
+  let iconLabel = vis.icon;
+  if (alert.type === 'pothole' && alert.meta?.severity_level) {
+    const sv = getSeverityVisual(alert.meta.severity_level);
+    color = sv.color;
+    iconLabel = sv.badgeEmoji;
+  } else if (alert.type === 'speeding_vehicle') {
+    color = '#f97316';
+    iconLabel = '⚡';
+  } else if (alert.type === 'rash_driving') {
+    color = '#ef4444';
+    iconLabel = '🚨';
+  }
+
   const beamH = Math.round(vis.severity * 6 + alert.confidence * 14);
-  const pulseRing = (vis.severity === 3 || alert.status === 'open')
+  const isCritical = vis.severity === 3 || alert.meta?.severity_level === 3 || alert.status === 'open';
+  const pulseRing = isCritical
     ? `<div style="
         position:absolute;bottom:0;left:50%;transform:translateX(-50%);
         width:28px;height:28px;border-radius:50%;
-        border:2px solid ${vis.color};
+        border:2px solid ${color};
         animation:leafletPulse 1.8s ease-out infinite;
         pointer-events:none;
       "></div>` : '';
 
+  // Speed badge for vehicle alerts
+  const speedBadge = (alert.type === 'speeding_vehicle' || alert.type === 'rash_driving') && alert.meta?.speed_kmh
+    ? `<div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);
+        background:${color};color:#000;font-size:8px;font-weight:bold;
+        padding:1px 4px;border-radius:4px;white-space:nowrap;font-family:monospace;">
+        ${Math.round(alert.meta.speed_kmh)}km/h
+      </div>`
+    : '';
+
   const html = `
     <div style="position:relative;width:32px;display:flex;flex-direction:column;align-items:center;cursor:pointer;">
-      <div style="width:3px;height:${beamH}px;background:linear-gradient(to top,${vis.color}CC,${vis.color}00);border-radius:2px;margin-bottom:2px;filter:blur(1px);"></div>
-      <div style="width:28px;height:28px;border-radius:50%;background:${vis.color}22;border:2px solid ${vis.color};display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 0 12px ${vis.color}80,0 0 24px ${vis.color}40;animation:markerPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;">
-        ${vis.icon}
+      ${speedBadge}
+      <div style="width:3px;height:${beamH}px;background:linear-gradient(to top,${color}CC,${color}00);border-radius:2px;margin-bottom:2px;filter:blur(1px);"></div>
+      <div style="width:28px;height:28px;border-radius:50%;background:${color}22;border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 0 12px ${color}80,0 0 24px ${color}40;animation:markerPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;">
+        ${iconLabel}
       </div>
       ${pulseRing}
     </div>`;
@@ -144,10 +171,15 @@ function ViewToggle({ mapView, setMapView }: { mapView: MapViewType; setMapView:
 // ─── Popup content ────────────────────────────────────────────────────────────
 
 function AlertPopup({ alert }: { alert: Alert }) {
-  const vis = ALERT_VISUALS[alert.type];
+  const vis = ALERT_VISUALS[alert.type] ?? ALERT_VISUALS['pothole'];
   const conf = Math.round(alert.confidence * 100);
-  const confColor = conf >= 90 ? '#22c55e' : conf >= 75 ? '#f59e0b' : '#ef4444';
   const { setSelectedAlertId } = useAppStore();
+  const meta = alert.meta;
+
+  // Severity color for pothole alerts
+  const sevColors: Record<number, string> = { 1: '#22c55e', 2: '#f59e0b', 3: '#ef4444' };
+  const sevColor = meta?.severity_level ? sevColors[meta.severity_level] : vis.color;
+  const confColor = conf > 85 ? '#4ef2bb' : conf > 60 ? '#f59e0b' : '#ef4444';
 
   return (
     <div style={{ padding: '12px 14px', width: 260, fontFamily: 'Inter,sans-serif' }}>
@@ -155,7 +187,7 @@ function AlertPopup({ alert }: { alert: Alert }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontSize: 16 }}>{vis.icon}</span>
-          <span style={{ color: vis.color, fontWeight: 700, fontSize: 13 }}>{vis.label}</span>
+          <span style={{ color: sevColor, fontWeight: 700, fontSize: 13 }}>{vis.label}</span>
         </div>
         <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{alert.id}</span>
       </div>
@@ -170,6 +202,36 @@ function AlertPopup({ alert }: { alert: Alert }) {
         <Row label="AI Confidence" value={`${conf}%`} valueColor={confColor} />
         <Row label="Bus Unit" value={alert.bus_id} mono />
         <Row label="Time" value={timeAgo(alert.timestamp)} />
+
+        {/* Pothole severity */}
+        {meta?.severity_level && (
+          <Row
+            label="Severity"
+            value={`Level ${meta.severity_level} — ${meta.severity_label ?? ''}`}
+            valueColor={sevColor}
+          />
+        )}
+        {meta?.action_required && (
+          <div style={{ marginTop: 4, fontSize: 10, color: sevColor, fontWeight: 600 }}>
+            {meta.action_required}
+          </div>
+        )}
+        {meta?.depth_score != null && <Row label="Depth Score" value={meta.depth_score.toFixed(2)} />}
+        {meta?.area_pct != null && <Row label="Area %" value={`${meta.area_pct.toFixed(1)}%`} />}
+
+        {/* Vehicle speed / rash */}
+        {meta?.speed_kmh != null && (
+          <Row
+            label="Speed"
+            value={`${Math.round(meta.speed_kmh)} km/h (limit: ${meta.speed_limit_kmh ?? 60})`}
+            valueColor={meta.speed_kmh > (meta.speed_limit_kmh ?? 60) ? '#ef4444' : '#f59e0b'}
+          />
+        )}
+        {meta?.rash_score != null && (
+          <Row label="Rash Score" value={`${(meta.rash_score * 100).toFixed(0)}%`} valueColor="#ef4444" />
+        )}
+        {meta?.vehicle_class && <Row label="Vehicle" value={meta.vehicle_class} />}
+
         {alert.meta.plate_number && <Row label="Plate (ANPR)" value={alert.meta.plate_number} valueColor="#f59e0b" mono />}
         {alert.meta.vehicle_count && <Row label="Vehicles" value={String(alert.meta.vehicle_count)} />}
         {alert.meta.verified_by_bus_count && (
@@ -180,9 +242,10 @@ function AlertPopup({ alert }: { alert: Alert }) {
           />
         )}
         <div style={{ marginTop: 3, fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
-          {alert.lat.toFixed(4)}°N {alert.long.toFixed(4)}°E
+          {alert.lat.toFixed(5)}°N {alert.long.toFixed(5)}°E
         </div>
       </div>
+
 
       {/* Action Button */}
       <button

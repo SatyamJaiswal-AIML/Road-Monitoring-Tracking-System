@@ -11,6 +11,7 @@ const PAGE_META: Record<DashboardPage, { title: string; route: string; sensor: s
   incidents: { title: 'AI HAZARD DETECTOR', route: 'RAPID RESPONSE // DANGER CORRIDORS', sensor: 'ANPR + INCIDENT TRACKER', speed: '52 KM/H' },
   analytics: { title: 'URBAN INTELLIGENCE HUB', route: 'CENTRAL AGGREGATOR ENGINE', sensor: 'OD PATTERNS & DELAYS', speed: '40 KM/H' },
   fleet:     { title: 'FLEET TRACKING DOCK', route: '42 ACTIVE ON-BOARD UNITS', sensor: 'GPS TELEMETRY & MESH', speed: 'LIVE' },
+  video:     { title: 'EDGE-AI ROAD ANALYSER', route: 'ROAD INSPECTION // YOLOv8 DEFECT DETECTION', sensor: 'YOLOv8 + OPENCV NEURAL PIPELINE', speed: 'PROCESSING' },
 };
 
 export function BusWindowTransition({ page }: BusWindowTransitionProps) {

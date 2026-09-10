@@ -1,19 +1,22 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Header, status, Response
+from fastapi import FastAPI, Depends, HTTPException, Query, Header, status, Response, UploadFile, File, Form
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
-
+import json
 import hmac
+import os
+
 from .schemas import (
     AlertCreate,
     AlertResponse,
     AlertStatusUpdate,
     AnalyticsSummary,
-    AlertType,
-    AlertStatus
+    VideoAnalysisResponse,
+    LiveFrameAnalysisResponse,
 )
 from .models import AlertModel
 from .database import get_db, init_db, haversine_distance_meters
@@ -25,34 +28,52 @@ from .security import (
     anonymize_plate_dpdp
 )
 
+# ─── Lazy import of vision engine (optional heavy ML deps) ────────────────────
+def _get_vision():
+    import importlib
+    import app.vision_engine as ve
+    importlib.reload(ve)
+    return ve.analyze_video, ve.analyze_single_frame, ve.RoadVisionAnalyzer
+
+# ─── Default Delhi GPS route for video analysis ───────────────────────────────
+DEFAULT_DELHI_ROUTE = [
+    {"lat": 28.6315, "long": 77.2167},
+    {"lat": 28.6328, "long": 77.2195},
+    {"lat": 28.6270, "long": 77.2300},
+    {"lat": 28.6380, "long": 77.2400},
+    {"lat": 28.6139, "long": 77.2090},
+    {"lat": 28.6200, "long": 77.2150},
+    {"lat": 28.6250, "long": 77.2250},
+    {"lat": 28.6300, "long": 77.2350},
+]
+
+# ─── App setup ────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Hawk AI — BEL Public Transport Sensing Platform",
-    description="Smart India Hackathon 2026 (Problem Statement 26124) Backend & Edge Ingestion API",
-    version="1.0.0",
+    title="UrbanEye AI — Road Monitoring Platform",
+    description=(
+        "SIH Problem Statement 26124 (BEL) — Edge-AI Onboard Road Monitoring "
+        "Framework integrated with a Centralized Urban Intelligence Platform"
+    ),
+    version="2.0.0",
 )
 
-# 1. OWASP Security Headers & Rate Limiting Middleware
 app.add_middleware(SecurityHeadersAndRateLimitMiddleware)
-
-from fastapi.staticfiles import StaticFiles
-import os
-
-# 2. Hardened CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list or ["http://localhost:5173"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "X-API-Key", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 3. Static Captures Serving
 static_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
-if os.path.exists(static_path):
-    app.mount("/static", StaticFiles(directory=static_path), name="static")
+os.makedirs(static_path, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
 
 @app.on_event("startup")
-def on_startup():
+def startup():
     init_db()
 
 def verify_edge_api_key(x_api_key: Optional[str] = Header(default=None)):
@@ -63,7 +84,9 @@ def verify_edge_api_key(x_api_key: Optional[str] = Header(default=None)):
             detail="Invalid or missing X-API-Key for edge alert ingestion"
         )
 
-# ─── Alert Endpoints ─────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+#  Alert Endpoints
+# ═════════════════════════════════════════════════════════════════════════════
 
 DEFECT_TYPES = {"pothole", "waterlogging", "missing_signboard", "missing_crossing"}
 
@@ -182,6 +205,23 @@ def update_alert_status(id: str, body: AlertStatusUpdate, db: Session = Depends(
     db.refresh(alert)
     return alert
 
+@app.delete("/alerts/{id}", status_code=status.HTTP_200_OK)
+def delete_alert(id: str, db: Session = Depends(get_db)):
+    """Delete an alert by its ID (matches exact ID, 'VID-' prefix, or raw detection ID)."""
+    candidates = [id, f"VID-{id}"]
+    if id.startswith("VID-"):
+        candidates.append(id[4:])
+    
+    alert = db.query(AlertModel).filter(AlertModel.id.in_(candidates)).first()
+    if not alert:
+        return {"deleted": False, "id": id, "message": "Alert not found in database."}
+
+    del_id = alert.id
+    db.delete(alert)
+    db.commit()
+    return {"deleted": True, "id": del_id, "message": f"Alert {del_id} deleted successfully."}
+
+
 @app.get("/alerts/{id}/work-order-pdf")
 def get_work_order_pdf(id: str, db: Session = Depends(get_db)):
     from .work_order_pdf import generate_work_order_pdf
@@ -220,7 +260,10 @@ def get_work_order_pdf(id: str, db: Session = Depends(get_db)):
         }
     )
 
-# ─── Analytics & Route Replay Endpoints ─────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+#  Analytics & Route Replay Endpoints
+# ═════════════════════════════════════════════════════════════════════════════
+
 
 @app.get("/analytics/summary", response_model=AnalyticsSummary)
 def get_analytics_summary(db: Session = Depends(get_db)):
@@ -231,7 +274,8 @@ def get_analytics_summary(db: Session = Depends(get_db)):
     ).scalar() or 0
 
     active_incidents = db.query(func.count(AlertModel.id)).filter(
-        AlertModel.type.in_(["incident_hit_and_run", "bottleneck", "pedestrian_risk"]),
+        AlertModel.type.in_(["incident_hit_and_run", "bottleneck", "pedestrian_risk",
+                              "speeding_vehicle", "rash_driving"]),
         AlertModel.status == "open"
     ).scalar() or 0
 
@@ -255,8 +299,6 @@ def get_heatmap_points(
     if type and type != "all":
         query = query.filter(AlertModel.type == type)
     alerts = query.all()
-
-    # Format: [[lat, long, intensity], ...]
     return [[a.lat, a.long, round(min(a.confidence * 1.2, 1.0), 2)] for a in alerts]
 
 @app.get("/routes/{bus_id}/replay")
@@ -283,10 +325,244 @@ def get_route_replay(bus_id: str, db: Session = Depends(get_db)):
         ]
     }
 
+# ═════════════════════════════════════════════════════════════════════════════
+#  Video Upload & Live Camera Analysis Endpoints (NEW — SIH-26124 Feature)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/video/analyze", tags=["Video Analysis"])
+async def analyze_video_upload(
+    file: UploadFile = File(..., description="Video file (MP4, AVI, MOV)"),
+    bus_id: str = Form(default="VIDEO-UPLOAD"),
+    confidence_threshold: float = Form(default=0.50),
+    sample_every_n_frames: int = Form(default=5),
+    route_json: Optional[str] = Form(default=None, description="JSON array of {lat, long} waypoints"),
+    save_to_db: bool = Form(default=True, description="Auto-ingest detected alerts into the database"),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload a road inspection video for full Edge-AI analysis.
+
+    Performs:
+    - YOLOv8 + OpenCV pothole detection with 3-level severity ranking
+    - Multi-frame vehicle tracking with speed (km/h) & rash driving detection
+    - GPS geotagging of each detection along the provided route
+    - Optional automatic persistence of all detected alerts to the database
+
+    Returns structured analysis results with pothole severity breakdown,
+    vehicle alerts, GPS coordinates, and frame timeline for Leaflet map rendering.
+    """
+    # Validate file type
+    if file.content_type and not any(
+        file.content_type.startswith(t) for t in ["video/", "application/octet-stream"]
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type: {file.content_type}. Please upload a video file."
+        )
+
+    # Parse route waypoints
+    route = DEFAULT_DELHI_ROUTE
+    if route_json:
+        try:
+            parsed_route = json.loads(route_json)
+            if isinstance(parsed_route, list) and parsed_route:
+                route = parsed_route
+        except json.JSONDecodeError:
+            pass  # Fall back to default route
+
+    # Read video bytes
+    video_bytes = await file.read()
+    if len(video_bytes) < 1024:
+        raise HTTPException(status_code=400, detail="Video file appears to be empty or too small.")
+
+    # Run vision analysis pipeline
+    try:
+        analyze_video_fn, _, _ = _get_vision()
+        result = analyze_video_fn(
+            video_bytes=video_bytes,
+            route=route,
+            confidence_threshold=confidence_threshold,
+            sample_every_n_frames=sample_every_n_frames,
+            origin_bus_id=bus_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Video analysis failed: {str(e)}")
+
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    # Auto-ingest all detected alerts to DB
+    ingested_count = 0
+    if save_to_db and result.get("alerts"):
+        for alert_data in result["alerts"]:
+            try:
+                alert_id = alert_data.get("id") or f"VID-{str(uuid.uuid4())[:8].upper()}"
+                meta_dict = alert_data.get("meta", {})
+                meta_dict["source"] = "video_upload"
+
+                db_alert = AlertModel(
+                    id=alert_id,
+                    type=alert_data["type"],
+                    confidence=alert_data["confidence"],
+                    lat=alert_data["lat"],
+                    long=alert_data["long"],
+                    timestamp=datetime.utcnow(),
+                    bus_id=bus_id,
+                    status="open",
+                    meta=meta_dict,
+                )
+                db.add(db_alert)
+                ingested_count += 1
+            except Exception:
+                continue
+        db.commit()
+
+    result["db_ingested_count"] = ingested_count
+    return result
+
+
+@app.post("/api/video/analyze-frame", tags=["Video Analysis"])
+async def analyze_camera_frame(
+    file: UploadFile = File(..., description="Single JPEG/PNG camera frame"),
+    frame_idx: int = Form(default=0),
+    total_frames: int = Form(default=100),
+    fps: float = Form(default=25.0),
+    bus_id: str = Form(default="LIVE-CAM"),
+    confidence_threshold: float = Form(default=0.50),
+    lat: Optional[float] = Form(default=None),
+    long: Optional[float] = Form(default=None),
+):
+    """
+    Analyze a single camera frame in real-time (live webcam mode).
+
+    Accepts a JPEG/PNG frame, runs YOLOv8 + OpenCV inference, and returns:
+    - Pothole detections with severity level (1, 2, or 3)
+    - Vehicle speed and rash driving alerts
+    - Annotated frame as base64-encoded JPEG for frontend overlay
+    - GPS coordinates for Leaflet map pin placement
+    """
+    frame_bytes = await file.read()
+    if not frame_bytes:
+        raise HTTPException(status_code=400, detail="Empty frame received")
+
+    # If GPS explicitly provided, use a single-point route
+    route = DEFAULT_DELHI_ROUTE
+    if lat is not None and long is not None:
+        route = [{"lat": lat, "long": long}]
+
+    try:
+        _, analyze_single_frame_fn, _ = _get_vision()
+        result = analyze_single_frame_fn(
+            frame_bytes=frame_bytes,
+            route=route,
+            frame_idx=frame_idx,
+            total_frames=total_frames,
+            fps=fps,
+            confidence_threshold=confidence_threshold,
+            bus_id=bus_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Frame analysis failed: {str(e)}")
+
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return result
+
+
+@app.post("/api/video/save-alerts", tags=["Video Analysis"])
+def save_video_alerts(
+    alerts: List[dict],
+    bus_id: str = Query(default="VIDEO-UPLOAD"),
+    db: Session = Depends(get_db),
+):
+    """
+    Batch-save video-detected alerts to the database.
+    Called by the frontend after user reviews and approves the video analysis results.
+    """
+    saved = []
+    for alert_data in alerts:
+        try:
+            alert_id = alert_data.get("id") or f"VID-{str(uuid.uuid4())[:8].upper()}"
+            alert_type = alert_data.get("type", "pothole")
+            meta_dict = alert_data.get("meta", {})
+            meta_dict["source"] = "video_upload"
+            meta_dict.setdefault("verified_by_bus_count", 1)
+
+            existing = db.query(AlertModel).filter(AlertModel.id == alert_id).first()
+            if existing:
+                existing.type = alert_type
+                existing.confidence = float(alert_data.get("confidence", 0.7))
+                existing.lat = float(alert_data["lat"])
+                existing.long = float(alert_data["long"])
+                existing.meta = meta_dict
+                saved.append(alert_id)
+            else:
+                db_alert = AlertModel(
+                    id=alert_id,
+                    type=alert_type,
+                    confidence=float(alert_data.get("confidence", 0.7)),
+                    lat=float(alert_data["lat"]),
+                    long=float(alert_data["long"]),
+                    timestamp=datetime.utcnow(),
+                    bus_id=bus_id,
+                    status="open",
+                    meta=meta_dict,
+                )
+                db.add(db_alert)
+                saved.append(alert_id)
+        except Exception:
+            continue
+
+    db.commit()
+    return {"saved_count": len(saved), "saved_ids": saved}
+
+
+@app.delete("/api/video/potholes/{detection_id}", tags=["Video Analysis"])
+def delete_video_pothole(detection_id: str, db: Session = Depends(get_db)):
+    """
+    Delete a detected pothole from the database using its detection_id or alert id.
+    """
+    candidates = [detection_id, f"VID-{detection_id}"]
+    if detection_id.startswith("VID-"):
+        candidates.append(detection_id[4:])
+
+    alert = db.query(AlertModel).filter(AlertModel.id.in_(candidates)).first()
+    if alert:
+        del_id = alert.id
+        db.delete(alert)
+        db.commit()
+        return {"deleted": True, "id": del_id, "message": f"Pothole {del_id} deleted from database."}
+    return {"deleted": False, "id": detection_id, "message": "Pothole not found in database (may be in active memory only)."}
+
+
+@app.post("/api/video/potholes/delete-batch", tags=["Video Analysis"])
+def delete_video_potholes_batch(detection_ids: List[str], db: Session = Depends(get_db)):
+    """
+    Batch delete detected potholes from the database.
+    """
+    all_targets = set()
+    for d in detection_ids:
+        all_targets.add(d)
+        all_targets.add(f"VID-{d}")
+        if d.startswith("VID-"):
+            all_targets.add(d[4:])
+
+    deleted_count = db.query(AlertModel).filter(AlertModel.id.in_(all_targets)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted_count": deleted_count, "message": f"{deleted_count} pothole alerts deleted from database."}
+
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Health Check
+# ═════════════════════════════════════════════════════════════════════════════
+
 @app.get("/health")
 def health_check(db: Session = Depends(get_db)):
     try:
         db.execute(func.now())
-        return {"status": "ok", "database": "connected", "service": "Hawk AI Backend"}
+        return {"status": "ok", "database": "connected", "service": "UrbanEye AI Backend v2.0"}
     except Exception as e:
-        return {"status": "error", "database": str(e), "service": "Hawk AI Backend"}
+        return {"status": "error", "database": str(e), "service": "UrbanEye AI Backend v2.0"}
+

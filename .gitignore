@@ -47,3 +47,8 @@ dist-ssr
 # Private Local Research & Innovation Vault (Never pushed to Git or Vercel)
 research_ideas/
 research_ideas/*
+
+# Generated video alert crop captures
+backend/static/captures/
+frontend/public/images/alerts/pothole_*.jpg
+
