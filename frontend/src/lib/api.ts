@@ -150,22 +150,8 @@ export function getWorkOrderPdfUrl(alertId: string): string {
   return `${BASE_URL}/alerts/${alertId}/work-order-pdf`;
 }
 
-export async function downloadWorkOrderPdf(alertId: string): Promise<void> {
+export function downloadWorkOrderPdf(alertId: string): void {
   const url = getWorkOrderPdfUrl(alertId);
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-    const blob = await res.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `PWD_WorkOrder_${alertId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(downloadUrl);
-    document.body.removeChild(a);
-  } catch (_err) {
-    window.open(url, '_blank');
-  }
+  window.open(url, '_blank');
 }
 

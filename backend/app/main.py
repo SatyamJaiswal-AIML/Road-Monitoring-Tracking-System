@@ -216,7 +216,7 @@ def get_work_order_pdf(id: str, db: Session = Depends(get_db)):
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=PWD_WorkOrder_{id}.pdf"
+            "Content-Disposition": f"inline; filename=PWD_WorkOrder_{id}.pdf"
         }
     )
 
