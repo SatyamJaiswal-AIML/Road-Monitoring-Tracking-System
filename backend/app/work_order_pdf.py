@@ -106,7 +106,7 @@ def generate_work_order_pdf(alert_data: dict) -> bytes:
     # 1. Header with Government / PWD Emblem details
     elements.append(Paragraph("GOVERNMENT OF NATIONAL CAPITAL TERRITORY OF DELHI", title_style))
     elements.append(Paragraph("PUBLIC WORKS DEPARTMENT (PWD) — SMART CITY INFRASTRUCTURE CELL", subtitle_style))
-    elements.append(Paragraph("URBANEYE AI AUTOMATED DEFECT TENDER & RECTIFICATION WORK ORDER", doc_header_style))
+    elements.append(Paragraph("HAWK AI AUTOMATED DEFECT TENDER & RECTIFICATION WORK ORDER", doc_header_style))
     elements.append(Spacer(1, 10))
 
     # Alert Fields
@@ -283,7 +283,7 @@ def generate_work_order_pdf(alert_data: dict) -> bytes:
     cert_data = [
         [
             Paragraph(f"<b>SHA256 Digital Fingerprint:</b><br/><font face='Courier' color='#0284c7' size='7'>{sha256_hash}</font>", body_style),
-            Paragraph("<b>Executive Engineer (Roads)</b><br/>Public Works Department, GNCTD<br/><i>[Digitally Signed via UrbanEye AI Automated Dispatch]</i>", body_style)
+            Paragraph("<b>Executive Engineer (Roads)</b><br/>Public Works Department, GNCTD<br/><i>[Digitally Signed via Hawk AI Automated Dispatch]</i>", body_style)
         ]
     ]
     cert_table = Table(cert_data, colWidths=[310, 210])

@@ -26,7 +26,7 @@ from .security import (
 )
 
 app = FastAPI(
-    title="UrbanEye AI — BEL Public Transport Sensing Platform",
+    title="Hawk AI — BEL Public Transport Sensing Platform",
     description="Smart India Hackathon 2026 (Problem Statement 26124) Backend & Edge Ingestion API",
     version="1.0.0",
 )
@@ -287,6 +287,6 @@ def get_route_replay(bus_id: str, db: Session = Depends(get_db)):
 def health_check(db: Session = Depends(get_db)):
     try:
         db.execute(func.now())
-        return {"status": "ok", "database": "connected", "service": "UrbanEye AI Backend"}
+        return {"status": "ok", "database": "connected", "service": "Hawk AI Backend"}
     except Exception as e:
-        return {"status": "error", "database": str(e), "service": "UrbanEye AI Backend"}
+        return {"status": "error", "database": str(e), "service": "Hawk AI Backend"}

@@ -19,8 +19,8 @@ export function Sidebar() {
     <aside className="flex flex-col items-center gap-2 w-[62px] shrink-0 z-20 py-4 bg-[#080808] border-r border-white/[0.1]">
       {/* Logo */}
       <div className="mb-4 flex flex-col items-center">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-black bg-[#4ef2bb] shadow-[0_0_20px_rgba(78,242,187,0.4)]">
-          UE
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black text-black bg-[#4ef2bb] shadow-[0_0_20px_rgba(78,242,187,0.4)]">
+          🦅
         </div>
       </div>
 
@@ -112,8 +112,9 @@ export function NavBar({ busCount }: NavBarProps) {
     <header className="h-14 shrink-0 flex items-center px-6 gap-4 z-[1200] bg-[#080808] border-b border-white/[0.1] relative">
       {/* Brand */}
       <div className="flex items-center gap-2 mr-auto">
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#4ef2bb] text-black font-black text-sm tracking-wide">
-          <span>UrbanEye</span>
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#4ef2bb] text-black font-black text-sm tracking-wide shadow-[0_0_15px_rgba(78,242,187,0.3)]">
+          <span className="text-base leading-none">🦅</span>
+          <span>HAWK</span>
           <span className="text-xs bg-black text-[#4ef2bb] px-1.5 py-0.5 rounded font-mono font-bold">AI</span>
         </div>
         <span className="ml-3 text-[10px] text-zinc-400 font-mono uppercase tracking-[0.2em] px-2.5 py-1 rounded bg-[#141416] border border-white/[0.08]">
