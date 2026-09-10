@@ -27,6 +27,21 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/alerts': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/analytics': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/routes': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/health': {
         target: 'http://localhost:8000',
         changeOrigin: true,
