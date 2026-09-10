@@ -71,12 +71,14 @@ export function DashboardPage() {
         <AlertListPanel alerts={alerts} isLoading={isAlertsLoading} />
       </div>
 
-      {/* ── Alert detail: floats over map bottom-center ── */}
-      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-[950] w-[420px]">
-        <AlertDetailPanel
-          alert={selectedAlert}
-          onClose={() => setSelectedAlertId(null)}
-        />
+      {/* ── Alert detail: perfectly centered in viewport safe zone (never clipped by navbar or bottom) ── */}
+      <div className="fixed inset-0 top-14 bottom-12 z-[950] flex items-center justify-center p-3 pointer-events-none">
+        <div className="pointer-events-auto w-[430px] max-w-[95vw] max-h-full flex flex-col">
+          <AlertDetailPanel
+            alert={selectedAlert}
+            onClose={() => setSelectedAlertId(null)}
+          />
+        </div>
       </div>
 
       {/* ── Bottom: collapsible analytics drawer ── */}

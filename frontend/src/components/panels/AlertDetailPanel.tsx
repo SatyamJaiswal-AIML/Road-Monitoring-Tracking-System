@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ALERT_VISUALS,
@@ -27,6 +27,17 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
   const [showAuditSlider, setShowAuditSlider] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const isResolved = alert?.status === 'resolved';
   const effectiveShowSlider = isResolved || showAuditSlider;
 
@@ -53,20 +64,20 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
       {alert && vis && statusVis && (
         <motion.div
           key={alert.id}
-          initial={{ opacity: 0, y: 35, scale: 0.92, filter: 'blur(8px)' }}
+          initial={{ opacity: 0, y: 20, scale: 0.94, filter: 'blur(8px)' }}
           animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, y: 25, scale: 0.94, filter: 'blur(6px)' }}
+          exit={{ opacity: 0, y: 15, scale: 0.95, filter: 'blur(6px)' }}
           transition={{
             type: 'spring',
             stiffness: 380,
             damping: 28,
           }}
-          className="w-full glass glass-accent rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.7)] border border-white/[0.12]"
+          className="w-full max-h-[82vh] glass glass-accent rounded-2xl overflow-hidden shadow-[0_25px_70px_rgba(0,0,0,0.85)] border border-white/[0.15] flex flex-col"
         >
-          {/* Header */}
+          {/* Header - Fixed at top, always visible with bright Close (X) button */}
           <div
-            className="px-5 py-3.5 flex items-center gap-3.5 border-b border-white/[0.08]"
-            style={{ background: `${vis.color}0d` }}
+            className="px-5 py-3 flex items-center gap-3.5 border-b border-white/[0.1] shrink-0 sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md"
+            style={{ background: `${vis.color}15` }}
           >
             <motion.span
               initial={{ rotate: -15, scale: 0.8 }}
@@ -76,22 +87,25 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
             >
               {vis.icon}
             </motion.span>
-            <div className="flex-1">
-              <div className={cn('font-bold text-sm tracking-tight', vis.textClass)}>
+            <div className="flex-1 min-w-0">
+              <div className={cn('font-bold text-sm tracking-tight truncate', vis.textClass)}>
                 {vis.label}
               </div>
               <div className="text-[11px] text-white/40 font-mono tracking-wider">{alert.id}</div>
             </div>
             <motion.button
-              whileHover={{ scale: 1.2, rotate: 90 }}
+              whileHover={{ scale: 1.15, rotate: 90 }}
               whileTap={{ scale: 0.85 }}
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-red-500/30 border border-white/[0.12] hover:border-red-500/50 flex items-center justify-center text-white/60 hover:text-red-400 transition-all cursor-pointer text-sm font-bold"
-              title="Close panel"
+              className="w-8 h-8 rounded-full bg-rose-500/20 hover:bg-rose-500/40 border border-rose-500/40 hover:border-rose-400 flex items-center justify-center text-rose-300 hover:text-white transition-all cursor-pointer text-sm font-bold shadow-[0_0_12px_rgba(244,63,94,0.35)] shrink-0"
+              title="Close panel (Esc)"
             >
               ✕
             </motion.button>
           </div>
+
+          {/* Scrollable Body & Footer Container */}
+          <div className="overflow-y-auto flex-1 flex flex-col divide-y divide-white/[0.04]">
 
           {/* Body */}
           <div className="px-5 py-4 flex flex-col gap-3.5">
@@ -229,28 +243,29 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
             </div>
           </div>
 
-          {/* Action Buttons with Framer Motion Tap/Hover effects */}
-          <div className="px-5 pb-4 flex gap-2.5">
-            {alert.status === 'open' && (
-              <motion.button
-                onClick={() => handleAction('acknowledged')}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-sm"
-              >
-                Acknowledge Alert
-              </motion.button>
-            )}
-            {alert.status !== 'resolved' && (
-              <motion.button
-                onClick={() => handleAction('resolved')}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-sm"
-              >
-                ✓ Mark Resolved
-              </motion.button>
-            )}
+            {/* Action Buttons with Framer Motion Tap/Hover effects */}
+            <div className="px-5 py-3.5 flex gap-2.5 bg-black/25 shrink-0">
+              {alert.status === 'open' && (
+                <motion.button
+                  onClick={() => handleAction('acknowledged')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-sm"
+                >
+                  Acknowledge Alert
+                </motion.button>
+              )}
+              {alert.status !== 'resolved' && (
+                <motion.button
+                  onClick={() => handleAction('resolved')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-sm"
+                >
+                  ✓ Mark Resolved
+                </motion.button>
+              )}
+            </div>
           </div>
         </motion.div>
       )}
