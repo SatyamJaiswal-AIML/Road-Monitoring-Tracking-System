@@ -48,7 +48,18 @@ dist-ssr
 research_ideas/
 research_ideas/*
 
-# Generated video alert crop captures
+# Generated video alert crop captures (bulk local runs ignored, official demo assets tracked)
 backend/static/captures/
 frontend/public/images/alerts/pothole_*.jpg
+!frontend/public/images/alerts/pothole_00A36D91.jpg
+!frontend/public/images/alerts/pothole_00B2DC78.jpg
+!frontend/public/images/alerts/pothole_00C0095A.jpg
+!frontend/public/images/alerts/pothole_00D27588.jpg
+!frontend/public/images/alerts/pothole_00D92E22.jpg
+!frontend/public/images/alerts/pothole_01678B7B.jpg
+!frontend/public/images/alerts/pothole_01685447.jpg
+!frontend/public/images/alerts/pothole_019562A0.jpg
+!frontend/public/images/alerts/pothole_01983238.jpg
+!frontend/public/images/alerts/pothole_0220660D.jpg
+!frontend/public/images/alerts/pothole_02BC8285.jpg
 

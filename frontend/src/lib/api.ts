@@ -19,6 +19,7 @@ import {
   MOCK_ALERTS, MOCK_SUMMARY, MOCK_HEATMAP, MOCK_ROUTES,
 } from '../data/mockData';
 import { useAppStore } from '../store/useAppStore';
+import { DEMO_POTHOLE_BASE64 } from './demoAlertImages';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
@@ -522,7 +523,12 @@ async function generateClientVideoAnalysis(
     },
   ];
 
-  const potholes = rawPotholes.filter((p) => p.confidence >= confidenceThreshold);
+  const potholes = rawPotholes
+    .map((p) => ({
+      ...p,
+      image_url: DEMO_POTHOLE_BASE64[p.detection_id] || p.image_url,
+    }))
+    .filter((p) => p.confidence >= confidenceThreshold);
 
   const vehicle_alerts: VehicleAlertDetection[] = [
     {

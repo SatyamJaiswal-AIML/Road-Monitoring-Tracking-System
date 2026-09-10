@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Alert } from '../../types';
 import { ALERT_VISUALS } from '../../lib/theme';
+import { DEMO_POTHOLE_BASE64 } from '../../lib/demoAlertImages';
 
 interface AlertCameraSnapshotProps {
   alert: Alert;
@@ -25,18 +26,37 @@ export function AlertCameraSnapshot({
   compact = false,
   className = '',
 }: AlertCameraSnapshotProps) {
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  const detectionIdMatch = (alert.id || '').replace(/^VID-|^alert-vid-|^alert-/, '').toUpperCase();
+  const fallbackBase64 = DEMO_POTHOLE_BASE64[detectionIdMatch];
+  const initialUrl = alert.meta?.image_url || alert.image_url || fallbackBase64;
 
-  const realImageUrl = alert.meta?.image_url || alert.image_url;
-  const hasRealCapture = Boolean(realImageUrl) && !imgError;
+  const [imgSrc, setImgSrc] = useState<string | undefined>(initialUrl);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(!initialUrl);
+
+  useEffect(() => {
+    const nextUrl = alert.meta?.image_url || alert.image_url || fallbackBase64;
+    setImgSrc(nextUrl);
+    setImgLoaded(false);
+    setImgError(!nextUrl);
+  }, [alert, fallbackBase64]);
+
+  const handleImgError = () => {
+    if (fallbackBase64 && imgSrc !== fallbackBase64) {
+      setImgSrc(fallbackBase64);
+      return;
+    }
+    setImgError(true);
+  };
+
+  const hasRealCapture = Boolean(imgSrc) && !imgError;
   const vis = ALERT_VISUALS[alert.type];
   const accentColor = vis?.color || '#f59e0b';
   const height = compact ? '125px' : '170px';
 
   // ── REAL CAPTURE MODE ──
-  // When process_real_video.py has run and produced a real YOLO-annotated frame
-  if (hasRealCapture) {
+  // When real video analysis or edge processor has produced a photo capture
+  if (hasRealCapture && imgSrc) {
     return (
       <div
         className={`relative w-full rounded-lg overflow-hidden border border-white/10 bg-zinc-950 select-none group ${className}`}
@@ -54,11 +74,11 @@ export function AlertCameraSnapshot({
 
         {/* Real YOLO-processed image */}
         <img
-          src={realImageUrl}
+          src={imgSrc}
           alt={`AI Detection: ${alert.type}`}
           loading="lazy"
           onLoad={() => setImgLoaded(true)}
-          onError={() => setImgError(true)}
+          onError={handleImgError}
           className={`w-full h-full object-cover transition-opacity duration-300 ${
             imgLoaded ? 'opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500' : 'opacity-0'
           }`}

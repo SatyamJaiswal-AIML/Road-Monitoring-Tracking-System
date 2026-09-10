@@ -15,6 +15,7 @@ import uuid
 import argparse
 from datetime import datetime, timezone
 import cv2
+import base64
 import httpx
 from ultralytics import YOLO
 
@@ -163,7 +164,11 @@ def process_video(video_source, sampling_fps=1.0, conf_threshold=0.45):
                     capture_path = os.path.join(CAPTURES_DIR, capture_filename)
                     cv2.imwrite(capture_path, annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
                     
-                    image_url = f"http://localhost:8000/static/captures/{capture_filename}"
+                    ok, buffer = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+                    if ok:
+                        image_url = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
+                    else:
+                        image_url = f"http://localhost:8000/static/captures/{capture_filename}"
 
                     # Construct and transmit alert to FastAPI
                     alert_id = f"ALT-REAL-{detected_count:03d}"

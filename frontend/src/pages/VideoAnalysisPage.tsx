@@ -20,6 +20,7 @@ import type {
   PotholeDetection,
   Alert, SeverityLevel, VideoAnalysisResult,
 } from '../types';
+import { DEMO_POTHOLE_BASE64 } from '../lib/demoAlertImages';
 
 // ─── Fix Leaflet default icon (bundler issue) ─────────────────────────────────
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -74,24 +75,43 @@ function SeverityBadge({ level }: { level: SeverityLevel }) {
   );
 }
 
-// ─── Unique Image Resolver & Dynamic SVG Fallback ─────────────────────────────
+// ─── Unique Image Resolver & Dynamic High-Tech Sensor Fallback ────────────────
 function getPotholeImageUrl(ph: PotholeDetection): string {
   if (ph.image_url && ph.image_url.trim() !== '' && !ph.image_url.endsWith('/pothole.jpg')) {
     return ph.image_url;
+  }
+  if (DEMO_POTHOLE_BASE64[ph.detection_id]) {
+    return DEMO_POTHOLE_BASE64[ph.detection_id];
   }
   return `/images/alerts/pothole_${ph.detection_id}.jpg`;
 }
 
 function handleImageError(e: React.SyntheticEvent<HTMLImageElement, Event>, ph: PotholeDetection) {
   const target = e.target as HTMLImageElement;
+  // If we have an embedded base64 photo for this detection, restore it immediately
+  if (DEMO_POTHOLE_BASE64[ph.detection_id] && !target.src.startsWith('data:image/jpeg')) {
+    target.src = DEMO_POTHOLE_BASE64[ph.detection_id];
+    return;
+  }
   const color = ph.severity_level === 3 ? '#ef4444' : ph.severity_level === 2 ? '#f59e0b' : '#22c55e';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180" fill="#070b14">
-    <rect width="100%" height="100%" fill="#0a0f1e"/>
-    <rect x="15" y="15" width="290" height="150" rx="8" stroke="${color}" stroke-dasharray="6,4" fill="${color}12"/>
-    <circle cx="160" cy="75" r="28" fill="${color}25" stroke="${color}" stroke-width="2"/>
-    <text x="160" y="82" fill="#ffffff" font-family="monospace" font-size="20" text-anchor="middle">🕳️</text>
-    <text x="160" y="122" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">DEFECT #${ph.detection_id}</text>
-    <text x="160" y="140" fill="${color}" font-family="monospace" font-size="10" text-anchor="middle">LEVEL ${ph.severity_level} · ${confidencePct(ph.confidence)}</text>
+    <defs>
+      <radialGradient id="asphalt_${ph.detection_id}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#182030"/>
+        <stop offset="100%" stop-color="#070a12"/>
+      </radialGradient>
+      <pattern id="grid_${ph.detection_id}" width="16" height="16" patternUnits="userSpaceOnUse">
+        <path d="M 16 0 L 0 0 0 16" fill="none" stroke="${color}" stroke-width="0.5" stroke-opacity="0.12"/>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#asphalt_${ph.detection_id})"/>
+    <rect width="100%" height="100%" fill="url(#grid_${ph.detection_id})"/>
+    <rect x="25" y="20" width="270" height="140" rx="6" stroke="${color}" stroke-dasharray="6,4" stroke-width="1.5" fill="${color}14"/>
+    <circle cx="160" cy="76" r="30" fill="${color}1f" stroke="${color}" stroke-width="1.5"/>
+    <path d="M 138 76 L 182 76 M 160 54 L 160 98" stroke="${color}" stroke-width="1" stroke-opacity="0.7"/>
+    <text x="160" y="80" fill="#ffffff" font-family="monospace" font-size="9" font-weight="bold" text-anchor="middle">EDGE SENSOR SCAN</text>
+    <text x="160" y="124" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">DEFECT #${ph.detection_id}</text>
+    <text x="160" y="142" fill="${color}" font-family="monospace" font-size="9" font-weight="600" text-anchor="middle">SEVERITY LEVEL ${ph.severity_level} · ${confidencePct(ph.confidence)}</text>
   </svg>`;
   target.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }

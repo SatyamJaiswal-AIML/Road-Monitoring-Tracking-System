@@ -602,6 +602,72 @@ class RoadVisionAnalyzer:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+def _extract_and_encode_pothole_patch(frame: np.ndarray, ph: dict) -> str:
+    """
+    Extracts a padded crop of the detected pothole from the video frame,
+    annotates it with the detection bounding box and severity badge,
+    and returns a compact base64-encoded JPEG Data URL.
+    Also saves a local copy to disk for static inspection when running locally.
+    """
+    try:
+        bx, by, bw, bh = ph["bounding_box"]
+        fh, fw = frame.shape[:2]
+        pad_x = max(int(bw * 0.7), 60)
+        pad_y = max(int(bh * 0.7), 50)
+        x1 = max(0, bx - pad_x)
+        y1 = max(0, by - pad_y)
+        x2 = min(fw, bx + bw + pad_x)
+        y2 = min(fh, by + bh + pad_y)
+        patch = frame[y1:y2, x1:x2].copy()
+        if patch.size > 0:
+            sev_colors = {1: (34, 197, 94), 2: (11, 158, 245), 3: (68, 68, 239)}  # BGR
+            c = sev_colors.get(ph.get("severity_level", 2), (68, 68, 239))
+            cv2.rectangle(patch, (bx - x1, by - y1), (bx + bw - x1, by + bh - y1), c, 2)
+            lbl = f"POTHOLE L{ph.get('severity_level', 1)} {ph.get('confidence', 0.8)*100:.0f}%"
+            cv2.putText(patch, lbl, (max(bx - x1, 4), max(by - y1 - 6, 16)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, c, 1, cv2.LINE_AA)
+
+            # Limit max dimensions to 360px to keep payload compact (~12-25KB)
+            max_dim = 360
+            hp, wp = patch.shape[:2]
+            if max(hp, wp) > max_dim:
+                s = max_dim / max(hp, wp)
+                enc_patch = cv2.resize(patch, (int(wp * s), int(hp * s)), interpolation=cv2.INTER_AREA)
+            else:
+                enc_patch = patch
+
+            ok, buffer = cv2.imencode(".jpg", enc_patch, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            data_url = ""
+            if ok:
+                b64_img = base64.b64encode(buffer).decode("utf-8")
+                data_url = f"data:image/jpeg;base64,{b64_img}"
+
+            # Also write local disk copies for local inspection
+            try:
+                img_filename = f"pothole_{ph['detection_id']}.jpg"
+                captures_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "captures")
+                os.makedirs(captures_dir, exist_ok=True)
+                cv2.imwrite(os.path.join(captures_dir, img_filename), patch, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
+                public_alerts_dir = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                    "frontend", "public", "images", "alerts"
+                )
+                os.makedirs(public_alerts_dir, exist_ok=True)
+                cv2.imwrite(os.path.join(public_alerts_dir, img_filename), patch, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            except Exception:
+                pass
+
+            if data_url:
+                return data_url
+            return f"/images/alerts/pothole_{ph['detection_id']}.jpg"
+    except Exception as ex:
+        logger.warning(f"Could not extract pothole crop: {ex}")
+
+    return "/images/alerts/pothole.jpg"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 #  Video File Analysis Entry Point
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -664,45 +730,7 @@ def analyze_video(
                 for ph in result["potholes"]:
                     ph["timestamp_sec"] = timestamp_sec
                     ph["frame_idx"] = frame_idx
-                    try:
-                        bx, by, bw, bh = ph["bounding_box"]
-                        fh, fw = frame.shape[:2]
-                        pad_x = max(int(bw * 0.7), 60)
-                        pad_y = max(int(bh * 0.7), 50)
-                        x1 = max(0, bx - pad_x)
-                        y1 = max(0, by - pad_y)
-                        x2 = min(fw, bx + bw + pad_x)
-                        y2 = min(fh, by + bh + pad_y)
-                        patch = frame[y1:y2, x1:x2].copy()
-                        if patch.size > 0:
-                            sev_colors = {1: (34, 197, 94), 2: (11, 158, 245), 3: (68, 68, 239)}  # BGR
-                            c = sev_colors.get(ph["severity_level"], (68, 68, 239))
-                            cv2.rectangle(patch, (bx - x1, by - y1), (bx + bw - x1, by + bh - y1), c, 2)
-                            lbl = f"POTHOLE L{ph['severity_level']} {ph['confidence']*100:.0f}%"
-                            cv2.putText(patch, lbl, (max(bx - x1, 4), max(by - y1 - 6, 16)),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, c, 1, cv2.LINE_AA)
-
-                            captures_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "captures")
-                            os.makedirs(captures_dir, exist_ok=True)
-                            img_filename = f"pothole_{ph['detection_id']}.jpg"
-                            img_path = os.path.join(captures_dir, img_filename)
-                            cv2.imwrite(img_path, patch, [cv2.IMWRITE_JPEG_QUALITY, 90])
-
-                            # Also write to frontend public images alerts if path exists
-                            public_alerts_dir = os.path.join(
-                                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                "frontend", "public", "images", "alerts"
-                            )
-                            os.makedirs(public_alerts_dir, exist_ok=True)
-                            public_path = os.path.join(public_alerts_dir, img_filename)
-                            cv2.imwrite(public_path, patch, [cv2.IMWRITE_JPEG_QUALITY, 90])
-
-                            ph["image_url"] = f"/images/alerts/{img_filename}"
-                        else:
-                            ph["image_url"] = "/images/alerts/pothole.jpg"
-                    except Exception as ex:
-                        logger.warning(f"Could not save pothole image snapshot: {ex}")
-                        ph["image_url"] = "/images/alerts/pothole.jpg"
+                    ph["image_url"] = _extract_and_encode_pothole_patch(frame, ph)
 
                 frame_results.append({
                     "frame_idx": frame_idx,
@@ -869,6 +897,10 @@ def analyze_single_frame(
         analyzer = get_shared_analyzer(confidence_threshold=confidence_threshold)
 
     result = analyzer.analyze_frame(frame, frame_idx, total_frames, fps, route)
+
+    # Extract and encode pothole crops
+    for ph in result["potholes"]:
+        ph["image_url"] = _extract_and_encode_pothole_patch(frame, ph)
 
     # Encode annotated frame as base64 JPEG for frontend display
     _, jpeg_buf = cv2.imencode(".jpg", result["annotated_frame"], [cv2.IMWRITE_JPEG_QUALITY, 82])
