@@ -150,8 +150,34 @@ export function getWorkOrderPdfUrl(alertId: string): string {
   return `${BASE_URL}/alerts/${alertId}/work-order-pdf`;
 }
 
-export function downloadWorkOrderPdf(alertId: string): void {
-  const url = getWorkOrderPdfUrl(alertId);
-  window.open(url, '_blank');
+export async function downloadWorkOrderPdf(alertId: string, alertData?: Alert): Promise<void> {
+  let alert = alertData;
+  if (!alert) {
+    alert = MOCK_ALERTS.find((a) => a.id === alertId);
+  }
+
+  // If backend is explicitly configured with non-mock mode, attempt backend stream
+  if (!USE_MOCK) {
+    try {
+      const url = getWorkOrderPdfUrl(alertId);
+      const res = await fetch(url, { method: 'HEAD' });
+      if (res.ok) {
+        window.open(url, '_blank');
+        return;
+      }
+    } catch (_err) {
+      // Backend not running, smoothly fall back to client generator
+    }
+  }
+
+  // Instant Client-Side Generation (100% reliable on Vercel deployment & offline)
+  if (alert) {
+    const { generateClientWorkOrderPdf } = await import('./workOrderPdfGenerator');
+    const doc = generateClientWorkOrderPdf(alert);
+    doc.save(`PWD_WorkOrder_${alert.id}.pdf`);
+    return;
+  }
+
+  window.open(getWorkOrderPdfUrl(alertId), '_blank');
 }
 

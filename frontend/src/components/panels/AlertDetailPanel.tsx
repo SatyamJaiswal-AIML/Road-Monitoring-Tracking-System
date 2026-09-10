@@ -50,7 +50,7 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
     if (!alert) return;
     setIsExporting(true);
     try {
-      await downloadWorkOrderPdf(alert.id);
+      await downloadWorkOrderPdf(alert.id, alert);
     } finally {
       setIsExporting(false);
     }

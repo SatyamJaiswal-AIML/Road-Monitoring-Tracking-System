@@ -365,7 +365,7 @@ function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatu
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        downloadWorkOrderPdf(alert.id);
+                        downloadWorkOrderPdf(alert.id, alert);
                       }}
                       className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-400 text-black hover:bg-amber-300 transition-all cursor-pointer shadow-[0_0_15px_rgba(245,158,11,0.4)] shrink-0 flex items-center gap-1.5"
                     >
