@@ -36,7 +36,7 @@ export function AlertCameraSnapshot({
 
   // ── REAL CAPTURE MODE ──
   // When process_real_video.py has run and produced a real YOLO-annotated frame
-  if (realImageUrl && !imgError) {
+  if (hasRealCapture) {
     return (
       <div
         className={`relative w-full rounded-lg overflow-hidden border border-white/10 bg-zinc-950 select-none group ${className}`}
