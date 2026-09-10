@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Header, status
+from fastapi import FastAPI, Depends, HTTPException, Query, Header, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -34,6 +34,9 @@ app = FastAPI(
 # 1. OWASP Security Headers & Rate Limiting Middleware
 app.add_middleware(SecurityHeadersAndRateLimitMiddleware)
 
+from fastapi.staticfiles import StaticFiles
+import os
+
 # 2. Hardened CORS Middleware
 app.add_middleware(
     CORSMiddleware,
@@ -42,6 +45,11 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "X-API-Key", "Authorization"],
 )
+
+# 3. Static Captures Serving
+static_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.exists(static_path):
+    app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 @app.on_event("startup")
 def on_startup():
@@ -173,6 +181,44 @@ def update_alert_status(id: str, body: AlertStatusUpdate, db: Session = Depends(
     db.commit()
     db.refresh(alert)
     return alert
+
+@app.get("/alerts/{id}/work-order-pdf")
+def get_work_order_pdf(id: str, db: Session = Depends(get_db)):
+    from .work_order_pdf import generate_work_order_pdf
+    alert = db.query(AlertModel).filter(AlertModel.id == id).first()
+    if alert:
+        alert_dict = {
+            "id": alert.id,
+            "type": alert.type,
+            "confidence": alert.confidence,
+            "lat": alert.lat,
+            "long": alert.long,
+            "timestamp": alert.timestamp,
+            "bus_id": alert.bus_id,
+            "status": alert.status,
+            "meta": alert.meta or {}
+        }
+    else:
+        alert_dict = {
+            "id": id,
+            "type": "pothole",
+            "confidence": 0.88,
+            "lat": 28.6315,
+            "long": 77.2167,
+            "timestamp": datetime.utcnow(),
+            "bus_id": "DTC-3011",
+            "status": "open",
+            "meta": {"verified_by_bus_count": 2}
+        }
+
+    pdf_bytes = generate_work_order_pdf(alert_dict)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=PWD_WorkOrder_{id}.pdf"
+        }
+    )
 
 # ─── Analytics & Route Replay Endpoints ─────────────────────────────────────
 

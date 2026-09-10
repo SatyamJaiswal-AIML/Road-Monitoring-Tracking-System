@@ -5,7 +5,7 @@ import {
 import { motion } from 'motion/react';
 import {
   MOCK_DENSITY_SERIES, MOCK_DEFECT_DISTRIBUTION,
-  MOCK_ROUTE_DELAYS,
+  MOCK_ROUTE_DELAYS, MOCK_CORRIDORS_PCI,
 } from '../data/mockData';
 
 const TOOLTIP_STYLE = {
@@ -120,6 +120,91 @@ export function AnalyticsPage() {
             </div>
           </div>
         </Card>
+      </div>
+
+      {/* ── NEW: Pavement Condition Index (PCI) Corridor Health (ASTM D6433) ── */}
+      <div className="mt-8 flex flex-col gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🛣️</span>
+              <h2 className="text-lg font-bold text-white tracking-wide">Pavement Condition Index (PCI) — Delhi Arterial Corridors</h2>
+              <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30 font-mono">
+                ASTM D6433 / IRC:SP:16
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-1">
+              Objective automated road distress ratings: Calculates deduct values from AI dashcam detections to determine maintenance budgets.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+              City Network PCI: <span className="text-amber-400 font-bold">67.2 / 100</span> (Fair)
+            </span>
+          </div>
+        </div>
+
+        {/* Corridor Table */}
+        <div className="glass rounded-2xl overflow-hidden border border-white/[0.08]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-zinc-300">
+              <thead className="bg-white/[0.04] text-[10px] uppercase tracking-wider text-zinc-400 font-semibold border-b border-white/[0.08]">
+                <tr>
+                  <th className="px-4 py-3">Corridor Stretch</th>
+                  <th className="px-4 py-3">Length</th>
+                  <th className="px-4 py-3">Transit Volume</th>
+                  <th className="px-4 py-3">Primary Distress</th>
+                  <th className="px-4 py-3">PCI Rating</th>
+                  <th className="px-4 py-3">PWD Recommended Treatment</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {MOCK_CORRIDORS_PCI.map((c) => {
+                  const pciColor =
+                    c.pci >= 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                    : c.pci >= 55 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                    : 'text-rose-400 bg-rose-500/10 border-rose-500/30';
+
+                  const barColor =
+                    c.pci >= 80 ? 'bg-emerald-500'
+                    : c.pci >= 55 ? 'bg-amber-500'
+                    : 'bg-rose-500';
+
+                  return (
+                    <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-white text-xs">{c.name}</div>
+                        <div className="text-[10px] text-zinc-500 font-mono">{c.lastInspected}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-zinc-300">{c.lengthKm} km</td>
+                      <td className="px-4 py-3 font-mono text-zinc-300">{c.tripsPerDay} trips/day</td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <span>{c.primaryDefect}</span>
+                        <span className="text-zinc-500 text-[10px] block font-mono">({c.defectCount} detected events)</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono border ${pciColor}`}>
+                            {c.pci}
+                          </span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${c.pci}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-[11px] text-zinc-200 bg-white/5 px-2 py-1 rounded border border-white/5">
+                          {c.recommendedAction}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* ── NEW: Civic Resolution & AI Audit Intelligence (Anti-Fraud System) ── */}

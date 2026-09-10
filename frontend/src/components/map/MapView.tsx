@@ -262,7 +262,7 @@ export function MapView({ alerts, heatmapPoints }: MapViewProps) {
               position={[alert.lat, alert.long]}
               icon={makeIcon(alert)}
             >
-              <Popup closeButton={false} offset={[0, -10]}>
+              <Popup closeButton={true} offset={[0, -10]}>
                 <AlertPopup alert={alert} />
               </Popup>
             </Marker>

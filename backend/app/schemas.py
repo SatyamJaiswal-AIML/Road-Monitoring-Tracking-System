@@ -20,6 +20,7 @@ class AlertMeta(BaseModel):
     plate_number: Optional[str] = Field(default=None, description="Extracted license plate for incident type")
     vehicle_count: Optional[int] = Field(default=None, description="Vehicle count for density/bottleneck types")
     verified_by_bus_count: Optional[int] = Field(default=1, description="Server-managed count of independent confirmations")
+    image_url: Optional[str] = Field(default=None, description="Edge AI snapshot camera URL")
 
 class AlertCreate(BaseModel):
     id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))

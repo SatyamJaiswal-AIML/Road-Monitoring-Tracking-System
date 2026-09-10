@@ -16,6 +16,12 @@ export interface AlertMeta {
   plate_number?: string;
   vehicle_count?: number;
   verified_by_bus_count?: number;
+  image_url?: string;
+  repaired_image_url?: string;
+  repaired_timestamp?: string;
+  repaired_by_contractor?: string;
+  repaired_verified_by_bus?: string;
+  pci_impact_score?: number;
 }
 
 export interface Alert {
@@ -28,6 +34,23 @@ export interface Alert {
   bus_id: string;
   status: AlertStatus;
   meta: AlertMeta;
+  image_url?: string;
+}
+
+// ─── Pavement Condition Index (PCI) Corridor ────────────────────────────────
+
+export interface CorridorPCI {
+  id: string;
+  name: string;
+  corridor: string;
+  pci: number; // 0 to 100
+  status: 'good' | 'fair' | 'poor' | 'critical';
+  defectCount: number;
+  lengthKm: number;
+  tripsPerDay: number;
+  primaryDefect: string;
+  lastInspected: string;
+  recommendedAction: string;
 }
 
 // ─── Heatmap ─────────────────────────────────────────────────────────────────

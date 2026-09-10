@@ -109,7 +109,7 @@ export function NavBar({ busCount }: NavBarProps) {
   };
 
   return (
-    <header className="h-14 shrink-0 flex items-center px-6 gap-4 z-30 bg-[#080808] border-b border-white/[0.1] relative">
+    <header className="h-14 shrink-0 flex items-center px-6 gap-4 z-[1200] bg-[#080808] border-b border-white/[0.1] relative">
       {/* Brand */}
       <div className="flex items-center gap-2 mr-auto">
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#4ef2bb] text-black font-black text-sm tracking-wide">
@@ -168,7 +168,7 @@ export function NavBar({ busCount }: NavBarProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute right-0 top-12 w-80 sm:w-96 rounded-2xl bg-[#0e0e11] border border-white/[0.12] shadow-[0_20px_50px_rgba(0,0,0,0.9)] overflow-hidden z-[9999]"
+              className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-2xl bg-[#0e0e11]/95 border border-white/[0.15] shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden z-[9999] backdrop-blur-2xl"
             >
               {/* Dropdown Header */}
               <div className="px-4 py-3 border-b border-white/[0.08] flex items-center justify-between bg-black/40">

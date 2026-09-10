@@ -26,7 +26,7 @@ export default function App() {
     <div className="flex h-full bg-[#000000] dot-matrix text-white overflow-hidden relative">
       <Sidebar />
 
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
+      <div className="flex flex-col flex-1 min-w-0 relative">
         <NavBar busCount={busCount} />
 
         <div className="flex-1 min-h-0 overflow-hidden relative">

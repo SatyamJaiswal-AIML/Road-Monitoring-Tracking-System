@@ -14,11 +14,14 @@ __pycache__/
 venv/
 .venv/
 env/
+*.pt
+backend/models/*.pt
 
 # Logs
 
 logs
 *.log
+backend/videos/verify_frames/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -40,3 +43,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Private Local Research & Innovation Vault (Never pushed to Git or Vercel)
+research_ideas/
+research_ideas/*

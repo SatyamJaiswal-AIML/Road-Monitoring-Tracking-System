@@ -9,11 +9,12 @@ import {
   timeAgo,
   cn,
 } from '../../lib/theme';
-import { updateAlertStatus } from '../../lib/api';
+import { updateAlertStatus, downloadWorkOrderPdf } from '../../lib/api';
 import { useAppStore } from '../../store/useAppStore';
 import type { Alert, AlertStatus } from '../../types';
 import { AdminAuthModal } from '../modals/AdminAuthModal';
 import { AlertCameraSnapshot } from '../common/AlertCameraSnapshot';
+import { RepairVerificationSlider } from '../common/RepairVerificationSlider';
 
 interface AlertDetailProps {
   alert: Alert | null;
@@ -23,10 +24,25 @@ interface AlertDetailProps {
 export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
   const { updateAlertStatus: localUpdate } = useAppStore();
   const [pendingStatus, setPendingStatus] = useState<AlertStatus | null>(null);
+  const [showAuditSlider, setShowAuditSlider] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const isResolved = alert?.status === 'resolved';
+  const effectiveShowSlider = isResolved || showAuditSlider;
 
   const handleAction = (status: AlertStatus) => {
     if (!alert) return;
     setPendingStatus(status);
+  };
+
+  const handleExportPdf = async () => {
+    if (!alert) return;
+    setIsExporting(true);
+    try {
+      await downloadWorkOrderPdf(alert.id);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const vis = alert ? ALERT_VISUALS[alert.type] : null;
@@ -67,10 +83,11 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
               <div className="text-[11px] text-white/40 font-mono tracking-wider">{alert.id}</div>
             </div>
             <motion.button
-              whileHover={{ scale: 1.15, rotate: 90 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.2, rotate: 90 }}
+              whileTap={{ scale: 0.85 }}
               onClick={onClose}
-              className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] border border-white/[0.08] flex items-center justify-center text-white/50 hover:text-white transition-colors cursor-pointer text-xs"
+              className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-red-500/30 border border-white/[0.12] hover:border-red-500/50 flex items-center justify-center text-white/60 hover:text-red-400 transition-all cursor-pointer text-sm font-bold"
+              title="Close panel"
             >
               ✕
             </motion.button>
@@ -97,16 +114,38 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
               </div>
             </div>
 
-            {/* Edge Camera Frame Snapshot */}
+            {/* Edge Camera vs Closed-Loop Repair Audit View */}
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center text-[11px] font-medium">
-                <span className="text-white/50">Edge Dashcam Snapshot</span>
-                <span className="text-emerald-400 font-mono text-[10px] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  AI CAPTURE
+                <span className="text-white/50">
+                  {effectiveShowSlider ? 'Closed-Loop Repair Audit' : 'Edge Dashcam Snapshot'}
                 </span>
+                
+                {/* View Toggle */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditSlider(!showAuditSlider)}
+                    className={`text-[9px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                      effectiveShowSlider
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                        : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    {effectiveShowSlider ? '📷 View Live Dashcam' : '🛡️ Audit Repair Slider'}
+                  </button>
+                  <span className="text-emerald-400 font-mono text-[10px] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    {effectiveShowSlider ? 'AUDITED' : 'AI CAPTURE'}
+                  </span>
+                </div>
               </div>
-              <AlertCameraSnapshot alert={alert} />
+
+              {effectiveShowSlider ? (
+                <RepairVerificationSlider alert={alert} />
+              ) : (
+                <AlertCameraSnapshot alert={alert} />
+              )}
             </div>
 
             {/* Info Grid */}
@@ -156,28 +195,47 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
             </div>
           </div>
 
-          {/* Action Buttons with Framer Motion Tap/Hover effects */}
-          <div className="px-5 pb-4 flex gap-2.5">
-            {alert.status === 'open' && (
-              <motion.button
-                onClick={() => handleAction('acknowledged')}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-sm"
-              >
-                Acknowledge Alert
-              </motion.button>
-            )}
-            {alert.status !== 'resolved' && (
-              <motion.button
-                onClick={() => handleAction('resolved')}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-sm"
-              >
-                ✓ Mark Resolved
-              </motion.button>
-            )}
+          {/* Action & Export Buttons */}
+          <div className="px-5 pb-4 flex flex-col gap-2">
+            <div className="flex gap-2.5">
+              {alert.status === 'open' && (
+                <motion.button
+                  onClick={() => handleAction('acknowledged')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-sm"
+                >
+                  Acknowledge Alert
+                </motion.button>
+              )}
+              {alert.status !== 'resolved' && (
+                <motion.button
+                  onClick={() => handleAction('resolved')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-sm"
+                >
+                  ✓ Mark Resolved
+                </motion.button>
+              )}
+            </div>
+
+            {/* 1-Click PWD Work Order Tender PDF */}
+            <motion.button
+              onClick={handleExportPdf}
+              disabled={isExporting}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full py-2 px-3 rounded-xl text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] text-white/80 hover:text-white border border-white/[0.08] hover:border-amber-400/40 flex items-center justify-between transition-all cursor-pointer disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2">
+                <span>{isExporting ? '⏳' : '📄'}</span>
+                <span>{isExporting ? 'Generating Official PWD PDF...' : '1-Click PWD Work Order PDF'}</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                SLA 48h
+              </span>
+            </motion.button>
           </div>
         </motion.div>
       )}

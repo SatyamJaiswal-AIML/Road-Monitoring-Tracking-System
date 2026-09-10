@@ -5,6 +5,7 @@ import { MapView } from '../components/map/MapView';
 import { AlertListPanel } from '../components/panels/AlertListPanel';
 import { AlertDetailPanel } from '../components/panels/AlertDetailPanel';
 import { FloatingMetricCards } from '../components/cards/FloatingMetricCards';
+import { CorridorPCIBar } from '../components/common/CorridorPCIBar';
 import { BottomDrawer } from '../components/charts/BottomDrawer';
 import type { HeatmapPoint } from '../types';
 
@@ -58,6 +59,11 @@ export function DashboardPage() {
       {/* ── Top-left: metric cards floating over map ── */}
       <div className="absolute top-3 left-3 z-[900]">
         <FloatingMetricCards summary={summary} isLoading={isSummaryLoading} />
+      </div>
+
+      {/* ── Top-center: Corridor PCI Health Bar ── */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[910] hidden lg:block">
+        <CorridorPCIBar />
       </div>
 
       {/* ── Right side: collapsible alert panel ── */}
