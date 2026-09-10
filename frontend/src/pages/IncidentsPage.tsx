@@ -6,8 +6,11 @@ import {
   formatGPS, timeAgo, cn,
 } from '../lib/theme';
 import type { Alert, AlertType, AlertStatus } from '../types';
-import { fetchAlerts, updateAlertStatus } from '../lib/api';
+import { fetchAlerts, updateAlertStatus, downloadWorkOrderPdf } from '../lib/api';
 import { AdminAuthModal } from '../components/modals/AdminAuthModal';
+import { AlertDetailPanel } from '../components/panels/AlertDetailPanel';
+import { AlertCameraSnapshot } from '../components/common/AlertCameraSnapshot';
+import { RepairVerificationSlider } from '../components/common/RepairVerificationSlider';
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -75,9 +78,10 @@ interface IncidentRowProps {
   onToggle: () => void;
   headersCount: number;
   onStatusRequest: (alertId: string, newStatus: AlertStatus) => void;
+  onInspect: (alert: Alert) => void;
 }
 
-function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatusRequest }: IncidentRowProps) {
+function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatusRequest, onInspect }: IncidentRowProps) {
   const vis = ALERT_VISUALS[alert.type];
   const statusVis = STATUS_VISUALS[alert.status];
   const { flyTo, setSelectedAlertId, setCurrentPage } = useAppStore();
@@ -94,6 +98,8 @@ function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatu
     setCurrentPage('dashboard');
   };
 
+  const isResolved = alert.status === 'resolved';
+
   return (
     <>
       <motion.tr
@@ -102,7 +108,7 @@ function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatu
         exit={{ opacity: 0 }}
         transition={{ duration: 0.22, delay: index * 0.025 }}
         style={{ willChange: 'transform, opacity' }}
-        onClick={onToggle}
+        onClick={() => onInspect(alert)}
         whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
         className={cn(
           'border-b border-white/[0.04] cursor-pointer group transition-colors select-none',
@@ -168,21 +174,45 @@ function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatu
             : <span className="text-white/20 text-xs">—</span>}
         </td>
 
-        {/* Status + Expand indicator */}
+        {/* Status + Quick Inspect + Expand indicator */}
         <td className="px-4 py-3.5">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <span className={cn(
-              'text-[11px] rounded-full px-2.5 py-1 font-semibold border',
+              'text-[11px] rounded-full px-2.5 py-1 font-semibold border shrink-0',
               statusVis.bgClass, statusVis.textClass, statusVis.borderClass
             )}>
               {statusVis.label}
             </span>
-            <span className={cn(
-              'text-xs text-white/30 transition-transform duration-200 group-hover:text-white/60',
-              isExpanded ? 'rotate-180 text-[#4ef2bb]' : ''
-            )}>
+
+            {/* Direct 1-Click Inspect & PDF Work Order Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onInspect(alert);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-sm hover:scale-105 shrink-0"
+              title="Open inspection dialogue box with photo & PWD PDF tender"
+            >
+              <span>📑</span>
+              <span className="hidden sm:inline">Inspect & PDF</span>
+            </button>
+
+            {/* Expand / Collapse Chevron */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+              className={cn(
+                'text-xs text-white/40 p-1 rounded hover:bg-white/10 transition-transform duration-200 group-hover:text-white ml-auto cursor-pointer',
+                isExpanded ? 'rotate-180 text-[#4ef2bb]' : ''
+              )}
+              title={isExpanded ? 'Collapse inline preview' : 'Expand inline preview'}
+            >
               ▼
-            </span>
+            </button>
           </div>
         </td>
       </motion.tr>
@@ -216,95 +246,176 @@ function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatu
                   </div>
                 </div>
 
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggle(); }}
-                  className="px-3 py-1 rounded-lg text-xs text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
-                >
-                  ▲ Collapse
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onInspect(alert); }}
+                    className="px-3 py-1 rounded-lg text-xs font-semibold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <span>🔍</span> Open Full Dialogue Box
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onToggle(); }}
+                    className="px-3 py-1 rounded-lg text-xs text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
+                  >
+                    ▲ Collapse
+                  </button>
+                </div>
               </div>
 
-              {/* 3-Card Telemetry Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Confidence Card */}
-                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/40 uppercase font-semibold text-[10px]">AI Confidence</span>
-                    <span className={cn('font-bold font-mono text-sm', confidenceColor(alert.confidence))}>
-                      {confidencePct(alert.confidence)}
+              {/* Dashcam Photo & Telemetry Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                {/* Left: Dashcam Snapshot / Repair Audit Slider (5 cols) */}
+                <div className="lg:col-span-5 flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center text-xs font-medium">
+                    <span className="text-white/50">
+                      {isResolved ? 'Closed-Loop Repair Audit' : 'Edge Dashcam Snapshot'}
+                    </span>
+                    <span className="text-emerald-400 font-mono text-[10px] flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      {isResolved ? 'AUDITED' : 'AI CAPTURE'}
                     </span>
                   </div>
-                  <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${alert.confidence * 100}%`,
-                        backgroundColor: alert.confidence >= 0.9 ? '#22c55e' : alert.confidence >= 0.75 ? '#f59e0b' : '#ef4444',
-                      }}
-                    />
-                  </div>
-                  <div className="text-[11px] text-white/50 mt-1">
-                    Consensus: {alert.meta?.verified_by_bus_count && alert.meta.verified_by_bus_count > 1 ? (
-                      <span className="text-[#4ef2bb] font-medium font-mono">✓ Confirmed by {alert.meta.verified_by_bus_count} buses</span>
+
+                  <div className="rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-inner">
+                    {isResolved ? (
+                      <RepairVerificationSlider alert={alert} />
                     ) : (
-                      <span className="text-zinc-400">Single-bus detection</span>
+                      <AlertCameraSnapshot alert={alert} compact={false} />
                     )}
                   </div>
                 </div>
 
-                {/* GPS Card */}
-                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1.5">
-                  <span className="text-white/40 uppercase font-semibold text-[10px]">Geospatial Location</span>
-                  <div className="font-mono text-sm text-white/90">
-                    {formatGPS(alert.lat, alert.long)}
-                  </div>
-                  <div className="text-[11px] text-white/40 font-mono">
-                    Lat: {alert.lat.toFixed(6)}°N | Long: {alert.long.toFixed(6)}°E
-                  </div>
-                </div>
+                {/* Right: Telemetry Specs & PWD Work Order PDF Button (7 cols) */}
+                <div className="lg:col-span-7 flex flex-col justify-between gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Confidence Card */}
+                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/40 uppercase font-semibold text-[10px]">AI Confidence</span>
+                        <span className={cn('font-bold font-mono text-xs', confidenceColor(alert.confidence))}>
+                          {confidencePct(alert.confidence)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${alert.confidence * 100}%`,
+                            backgroundColor: alert.confidence >= 0.9 ? '#22c55e' : alert.confidence >= 0.75 ? '#f59e0b' : '#ef4444',
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-white/50">
+                        {alert.meta?.verified_by_bus_count && alert.meta.verified_by_bus_count > 1 ? (
+                          <span className="text-[#4ef2bb] font-mono">✓ {alert.meta.verified_by_bus_count} buses</span>
+                        ) : (
+                          <span className="text-zinc-400">Single bus</span>
+                        )}
+                      </span>
+                    </div>
 
-                {/* Edge Metadata */}
-                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1.5">
-                  <span className="text-white/40 uppercase font-semibold text-[10px]">Edge Metadata</span>
-                  {alert.meta?.plate_number ? (
-                    <div className="text-xs">
-                      License Plate (ANPR): <span className="font-mono text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">{alert.meta.plate_number}</span>
+                    {/* GPS Card */}
+                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
+                      <span className="text-white/40 uppercase font-semibold text-[10px]">GPS Coords</span>
+                      <div className="font-mono text-xs text-sky-400">
+                        {formatGPS(alert.lat, alert.long)}
+                      </div>
+                      <span className="text-[10px] text-white/30 font-mono">
+                        {alert.lat.toFixed(4)}°N, {alert.long.toFixed(4)}°E
+                      </span>
                     </div>
-                  ) : alert.meta?.vehicle_count ? (
-                    <div className="text-xs text-white/80">
-                      Vehicle Density: <span className="font-bold text-white font-mono">{alert.meta.vehicle_count} units</span>
+
+                    {/* Edge Metadata */}
+                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
+                      <span className="text-white/40 uppercase font-semibold text-[10px]">Edge Metadata</span>
+                      {alert.meta?.plate_number ? (
+                        <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 truncate">
+                          {alert.meta.plate_number}
+                        </span>
+                      ) : alert.meta?.vehicle_count ? (
+                        <span className="text-xs text-white font-mono font-bold">
+                          {alert.meta.vehicle_count} units
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#4ef2bb] font-mono">
+                          {alert.type}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-white/40">DPDP Protected</span>
                     </div>
-                  ) : (
-                    <div className="text-xs text-white/50">
-                      Defect Type: <span className="text-[#4ef2bb] font-mono">{alert.type}</span>
+                  </div>
+
+                  {/* 1-Click PWD Work Order PDF Button */}
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-emerald-500/15 border border-amber-400/40">
+                    <div className="text-3xl">📑</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-white flex items-center gap-2">
+                        <span>PWD OFFICIAL ROAD REPAIR WORK ORDER</span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          SLA 48H • IRC:82
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-white/60">
+                        Generate official tender PDF with GPS, timestamp, bus ID & contractor compliance terms.
+                      </div>
                     </div>
-                  )}
-                  <div className="text-[11px] text-white/40">
-                    Privacy: <span className="text-zinc-300">DPDP Act Anonymized</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadWorkOrderPdf(alert.id);
+                      }}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-400 text-black hover:bg-amber-300 transition-all cursor-pointer shadow-[0_0_15px_rgba(245,158,11,0.4)] shrink-0 flex items-center gap-1.5"
+                    >
+                      <span>📑</span>
+                      <span>Generate PDF</span>
+                    </button>
                   </div>
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06] flex-wrap">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onInspect(alert);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <span>🔍</span> Open Inspection Dialogue Box
+                </button>
+
                 {alert.status === 'open' && (
                   <button
-                    onClick={(e) => handleStatusChange(e, 'acknowledged')}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onInspect(alert);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer flex items-center gap-1.5"
                   >
-                    Mark as Acknowledged
+                    <span>⚡</span> Acknowledge Alert
                   </button>
                 )}
                 {alert.status !== 'resolved' && (
                   <button
-                    onClick={(e) => handleStatusChange(e, 'resolved')}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onInspect(alert);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer flex items-center gap-1.5"
                   >
-                    ✓ Mark as Resolved
+                    <span>✓</span> Mark as Resolved
                   </button>
                 )}
                 {alert.status === 'resolved' && (
                   <button
+                    type="button"
                     onClick={(e) => handleStatusChange(e, 'open')}
                     className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 text-white/70 border border-white/15 hover:bg-white/15 transition-all cursor-pointer"
                   >
@@ -313,6 +424,7 @@ function IncidentRow({ alert, index, isExpanded, onToggle, headersCount, onStatu
                 )}
 
                 <button
+                  type="button"
                   onClick={handleViewOnMap}
                   className="ml-auto flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-[#4ef2bb] text-black hover:bg-[#3cdca8] transition-all cursor-pointer shadow-[0_0_20px_rgba(78,242,187,0.3)]"
                 >
@@ -352,7 +464,10 @@ export function IncidentsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('road');
   const [subFilter, setSubFilter] = useState<AlertType | 'all'>('all');
   const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
+  const [inspectAlertId, setInspectAlertId] = useState<string | null>(null);
   const [authModal, setAuthModal] = useState<{ alertId: string; targetStatus: AlertStatus } | null>(null);
+
+  const inspectAlert = alerts.find((a) => a.id === inspectAlertId) || null;
 
   useEffect(() => {
     setAlertsLoading(true);
@@ -514,6 +629,7 @@ export function IncidentsPage() {
                         onToggle={() => setExpandedAlertId(expandedAlertId === alert.id ? null : alert.id)}
                         headersCount={HEADERS.length}
                         onStatusRequest={(alertId, newStatus) => setAuthModal({ alertId, targetStatus: newStatus })}
+                        onInspect={(a) => setInspectAlertId(a.id)}
                       />
                     ))}
             </AnimatePresence>
@@ -521,6 +637,18 @@ export function IncidentsPage() {
         </table>
         </div>
       </div>
+
+      {/* ── Inspection & PWD Work Order Dialogue Box Modal (Exact same as Map View) ── */}
+      {inspectAlert && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm pointer-events-auto">
+          <div className="w-[440px] max-w-[95vw] max-h-full flex flex-col">
+            <AlertDetailPanel
+              alert={inspectAlert}
+              onClose={() => setInspectAlertId(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Admin Verification Modal */}
       {authModal && (
