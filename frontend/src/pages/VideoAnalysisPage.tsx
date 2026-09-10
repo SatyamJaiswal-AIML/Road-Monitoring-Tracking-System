@@ -10,6 +10,7 @@ import {
   deleteVideoPothole,
   deleteVideoPotholesBatch,
   saveVideoAlerts,
+  clearAllVideoAlerts,
 } from '../lib/api';
 import {
   SEVERITY_VISUALS,
@@ -156,7 +157,7 @@ export function VideoAnalysisPage() {
 
   // Database save & delete state
   const [isSavingDb, setIsSavingDb] = useState<boolean>(false);
-  const [dbSavedSuccess, setDbSavedSuccess] = useState<boolean>(false);
+  const [isSavedInDb, setIsSavedInDb] = useState<boolean>(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteToast, setDeleteToast] = useState<{ message: string; id: string } | null>(null);
 
@@ -258,6 +259,7 @@ export function VideoAnalysisPage() {
       setProgress(100);
       setProcessingPhase('Analysis complete! Synchronized bounding boxes and photo captures ready.');
       setVideoResult(result);
+      setIsSavedInDb(autoSaveDb);
       setShowSuccessBanner(true);
 
       // Auto-sync into app store so alerts appear across map & incidents
@@ -604,13 +606,12 @@ export function VideoAnalysisPage() {
             },
           }));
       await saveVideoAlerts(alertsToSave);
-      setDbSavedSuccess(true);
+      setIsSavedInDb(true);
       setDeleteToast({
-        message: `Successfully saved ${alertsToSave.length} detections to database.`,
+        message: `Successfully saved ${alertsToSave.length} detections to SQLite database.`,
         id: 'db-save',
       });
       setTimeout(() => {
-        setDbSavedSuccess(false);
         setDeleteToast(null);
       }, 3500);
     } catch (err) {
@@ -618,6 +619,33 @@ export function VideoAnalysisPage() {
     } finally {
       setIsSavingDb(false);
     }
+  };
+
+  // ─── Delete All Video Detections from Database ──────────────────────────────
+  const handleDeleteAllFromDatabase = async () => {
+    if (!videoResult) return;
+    const confirmDelete = window.confirm(
+      `Delete all ${videoResult.potholes.length} detected potholes from the SQLite database (urbaneye.db) and clear from active session?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const ids = videoResult.potholes.map(p => p.detection_id);
+      await deleteVideoPotholesBatch(ids);
+      await clearAllVideoAlerts();
+    } catch (err) {
+      console.warn('Error clearing detections from database:', err);
+    }
+
+    setVideoResult(null);
+    setSelectedDetectionId(null);
+    setPhotoModalPothole(null);
+    setIsSavedInDb(false);
+    setDeleteToast({
+      message: 'Successfully deleted all detections from SQLite database (urbaneye.db).',
+      id: 'all-deleted',
+    });
+    setTimeout(() => setDeleteToast(null), 3500);
   };
 
   return (
@@ -729,14 +757,28 @@ export function VideoAnalysisPage() {
           </button>
         </div>
 
-        {/* Tab 4 / Quick Ingestion Action & DB Save */}
-        <div className="flex items-center gap-2">
+        {/* Tab 4 / Quick Ingestion Action & DB Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Pre-Analysis DB Toggle */}
+          <label
+            title="Toggle whether to automatically save detected potholes into SQLite database (urbaneye.db)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-[11px] text-white/80 cursor-pointer hover:bg-white/[0.08] transition-all select-none"
+          >
+            <input
+              type="checkbox"
+              checked={autoSaveDb}
+              onChange={(e) => setAutoSaveDb(e.target.checked)}
+              className="rounded accent-[#4ef2bb]"
+            />
+            <span className="font-mono">Auto-Save DB</span>
+          </label>
+
           {/* Direct Demo Video Analysis Action */}
           <button
             onClick={handleAnalyzeDemoVideo}
             disabled={isVideoAnalyzing}
             className={cn(
-              'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 shadow-md',
+              'px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 shadow-md',
               isVideoAnalyzing
                 ? 'bg-white/10 text-white/40 cursor-not-allowed border-white/10'
                 : 'bg-gradient-to-r from-[#4ef2bb]/25 via-[#4ef2bb]/15 to-transparent text-[#4ef2bb] border-[#4ef2bb]/50 hover:bg-[#4ef2bb]/30 hover:border-[#4ef2bb]'
@@ -747,27 +789,46 @@ export function VideoAnalysisPage() {
             <span>{isVideoAnalyzing ? 'Analysing Demo…' : 'Analyse Demo Video'}</span>
           </button>
 
+          {/* Post-Analysis Database Controls */}
           {videoResult && (
-            <button
-              onClick={handleSaveToDatabase}
-              disabled={isSavingDb}
-              title="Save & sync all detections to the database"
-              className={cn(
-                'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 shadow-sm',
-                dbSavedSuccess
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+            <div className="flex items-center gap-1.5">
+              {isSavedInDb ? (
+                <>
+                  <span className="px-2 py-1 rounded-lg text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    ✓ Stored in SQLite
+                  </span>
+                  <button
+                    onClick={handleDeleteAllFromDatabase}
+                    title="Delete all current video detections from the SQLite database"
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center gap-1 shadow-sm"
+                  >
+                    <span>🗑️</span>
+                    <span>Delete from DB</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="px-2 py-1 rounded-lg text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    ⚠️ Memory Only
+                  </span>
+                  <button
+                    onClick={handleSaveToDatabase}
+                    disabled={isSavingDb}
+                    title="Store all detections in the SQLite database (urbaneye.db)"
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 flex items-center gap-1 shadow-sm"
+                  >
+                    <span>💾</span>
+                    <span>{isSavingDb ? 'Saving…' : 'Store in DB'}</span>
+                  </button>
+                </>
               )}
-            >
-              <span>{dbSavedSuccess ? '✅' : '💾'}</span>
-              <span>{dbSavedSuccess ? 'Saved in DB' : isSavingDb ? 'Saving...' : 'Save to DB'}</span>
-            </button>
+            </div>
           )}
 
           <button
             onClick={() => setMainView(mainView === 'upload' ? 'video' : 'upload')}
             className={cn(
-              'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5',
+              'px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5',
               mainView === 'upload'
                 ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
                 : 'bg-white/5 text-white/70 border-white/10 hover:text-white hover:bg-white/10'
@@ -1391,14 +1452,57 @@ export function VideoAnalysisPage() {
                   </button>
                 </div>
 
-                <button
-                  onClick={handleSaveToDatabase}
-                  disabled={isSavingDb}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-sm"
-                >
-                  <span>{dbSavedSuccess ? '✅' : '💾'}</span>
-                  <span>{dbSavedSuccess ? 'Saved to Database!' : isSavingDb ? 'Saving to Database...' : 'Save All Current Potholes to DB'}</span>
-                </button>
+                {/* Database Management Card */}
+                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                      <span>🗄️</span> SQLite Database (urbaneye.db)
+                    </span>
+                    {isSavedInDb ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        ✓ Stored in DB
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Memory Only
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={handleSaveToDatabase}
+                      disabled={isSavingDb || isSavedInDb}
+                      className={cn(
+                        'py-2 px-2 rounded-lg text-xs font-bold transition-all border flex items-center justify-center gap-1.5',
+                        isSavedInDb
+                          ? 'bg-emerald-500/10 text-emerald-400/60 border-emerald-500/20 cursor-default'
+                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                      )}
+                    >
+                      <span>💾</span>
+                      <span>{isSavedInDb ? 'Saved in DB' : isSavingDb ? 'Saving…' : 'Save to DB'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleDeleteAllFromDatabase}
+                      className="py-2 px-2 rounded-lg text-xs font-bold transition-all border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center gap-1.5"
+                    >
+                      <span>🗑️</span>
+                      <span>Delete All DB</span>
+                    </button>
+                  </div>
+
+                  {lowCount > 0 && (
+                    <button
+                      onClick={handleClearAllLevel1}
+                      className="w-full py-1.5 rounded-lg text-[11px] font-medium border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/15 text-amber-300 flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <span>🧹</span>
+                      <span>Clear {lowCount} Low (Level-1) Potholes from DB</span>
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
               <div className="text-center py-2 text-white/30 text-xs font-mono">
@@ -1679,7 +1783,7 @@ export function VideoAnalysisPage() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-white/60">
+              <div className="flex items-center gap-2 text-xs text-white/80 bg-white/[0.04] px-3 py-1.5 rounded-xl border border-white/10">
                 <input
                   type="checkbox"
                   id="autoSave"
@@ -1687,8 +1791,18 @@ export function VideoAnalysisPage() {
                   onChange={(e) => setAutoSaveDb(e.target.checked)}
                   className="rounded accent-[#4ef2bb]"
                 />
-                <label htmlFor="autoSave" className="cursor-pointer select-none">Save alerts to Fleet DB</label>
+                <label htmlFor="autoSave" className="cursor-pointer select-none flex items-center gap-1.5 font-medium">
+                  <span>💾</span>
+                  <span>Store in SQLite Database (urbaneye.db)</span>
+                </label>
               </div>
+            </div>
+
+            <div className="text-[11px] text-white/50 bg-white/[0.02] px-3 py-2 rounded-xl border border-white/[0.06] flex items-center justify-between">
+              <span>🗄️ Target Database: <strong className="text-white">SQLite (backend/urbaneye.db)</strong></span>
+              <span className={autoSaveDb ? "text-emerald-400 font-semibold" : "text-amber-300 font-semibold"}>
+                {autoSaveDb ? "✓ Will Save to Database" : "⚠️ Memory Only (Not Saved)"}
+              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 bg-white/[0.02] p-3 rounded-xl border border-white/[0.06] text-xs">

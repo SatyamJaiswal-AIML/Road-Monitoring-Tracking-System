@@ -545,12 +545,39 @@ def delete_video_potholes_batch(detection_ids: List[str], db: Session = Depends(
     for d in detection_ids:
         all_targets.add(d)
         all_targets.add(f"VID-{d}")
+        all_targets.add(f"alert-vid-{d.lower()}")
+        all_targets.add(f"alert-vid-{d}")
         if d.startswith("VID-"):
             all_targets.add(d[4:])
+        if d.startswith("alert-vid-"):
+            all_targets.add(d[10:])
 
     deleted_count = db.query(AlertModel).filter(AlertModel.id.in_(all_targets)).delete(synchronize_session=False)
     db.commit()
     return {"deleted_count": deleted_count, "message": f"{deleted_count} pothole alerts deleted from database."}
+
+
+@app.post("/api/video/clear-all", tags=["Video Analysis"])
+@app.delete("/api/video/clear-all", tags=["Video Analysis"])
+def clear_all_video_alerts(bus_id: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
+    """
+    Clear all video-analyzed alerts from the database.
+    Optionally filter by bus_id.
+    """
+    from sqlalchemy import or_
+    query = db.query(AlertModel).filter(
+        or_(
+            AlertModel.id.like("VID-%"),
+            AlertModel.id.like("alert-vid-%"),
+            AlertModel.bus_id.like("ROAD-%"),
+            AlertModel.bus_id == "VIDEO-UPLOAD",
+        )
+    )
+    if bus_id:
+        query = query.filter(AlertModel.bus_id == bus_id)
+    deleted_count = query.delete(synchronize_session=False)
+    db.commit()
+    return {"deleted_count": deleted_count, "message": f"Successfully deleted {deleted_count} video alerts from the database."}
 
 
 

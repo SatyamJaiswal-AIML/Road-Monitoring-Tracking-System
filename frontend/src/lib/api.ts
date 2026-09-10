@@ -273,6 +273,8 @@ export async function downloadWorkOrderPdf(alertId: string, alertData?: Alert): 
 
 // ─── POST /api/video/analyze ─────────────────────────────────────────────────
 
+// ─── POST /api/video/analyze ─────────────────────────────────────────────────
+
 export async function analyzeVideoFile(params: {
   file: File;
   busId?: string;
@@ -283,45 +285,42 @@ export async function analyzeVideoFile(params: {
 }): Promise<VideoAnalysisResult> {
   const busId = params.busId ?? 'VIDEO-UPLOAD';
   const confidenceThreshold = params.confidenceThreshold ?? 0.35;
+  const sampleEveryNFrames = params.sampleEveryNFrames ?? 10;
+  const saveToDb = params.saveToDb ?? true;
 
-  // 1. If running on cloud HTTPS (e.g. Vercel) with localhost backend, or if mock mode is forced:
-  // mixed-content security blocks HTTP requests immediately. Execute client Edge AI pipeline directly.
-  if (isMixedContentBlocked || USE_MOCK) {
-    console.info('[Vision Pipeline] Cloud Edge AI Execution activated (offline/zero-backend mode)');
-    return generateClientVideoAnalysis(params.file, confidenceThreshold, busId);
-  }
+  // Real backend analysis: pass file and all model parameters directly to YOLOv8 + OpenCV pipeline
+  const formData = new FormData();
+  formData.append('file', params.file);
+  formData.append('bus_id', busId);
+  formData.append('confidence_threshold', String(confidenceThreshold));
+  formData.append('sample_every_n_frames', String(sampleEveryNFrames));
+  formData.append('save_to_db', String(saveToDb));
+  if (params.routeJson) formData.append('route_json', params.routeJson);
 
-  // 2. Local development or custom backend URL configured: attempt FastAPI backend
   try {
-    const formData = new FormData();
-    formData.append('file', params.file);
-    formData.append('bus_id', busId);
-    formData.append('confidence_threshold', String(confidenceThreshold));
-    formData.append('sample_every_n_frames', String(params.sampleEveryNFrames ?? 10));
-    formData.append('save_to_db', String(params.saveToDb ?? true));
-    if (params.routeJson) formData.append('route_json', params.routeJson);
-
-    const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 25000);
-
     const res = await fetch(`${BASE_URL}/api/video/analyze`, {
       method: 'POST',
       body: formData,
-      signal: ctrl.signal,
     });
-    clearTimeout(timeout);
 
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      console.log('✅ Real YOLO + OpenCV backend analysis succeeded:', data);
+      return data;
     }
-    const errText = await res.text();
-    console.warn(`[Vision Pipeline] Backend returned ${res.status} ${errText}; falling back to client engine.`);
-  } catch (err) {
-    console.warn('[Vision Pipeline] Backend unreachable or timed out, activating client Edge AI fallback:', err);
-  }
 
-  // 3. Guaranteed client-side analysis fallback — never throws "Failed to fetch"
-  return generateClientVideoAnalysis(params.file, confidenceThreshold, busId);
+    const errText = await res.text();
+    console.error('Backend returned error:', res.status, errText);
+    throw new Error(`AI Backend (${res.status}): ${errText || res.statusText}`);
+  } catch (err: any) {
+    console.warn('[Vision Pipeline] Real backend analysis call failed:', err);
+    if (USE_MOCK) {
+      return generateClientVideoAnalysis(params.file, confidenceThreshold, busId);
+    }
+    throw new Error(
+      `AI Vision Backend unreachable at ${BASE_URL}. Ensure your FastAPI backend is running: "uvicorn app.main:app --reload --port 8000". Details: ${err.message}`
+    );
+  }
 }
 
 // ─── High-Fidelity Client-Side Edge AI Vision Pipeline ────────────────────────
@@ -802,6 +801,21 @@ export async function deleteAlert(alertId: string): Promise<{ deleted: boolean; 
   }
   return { deleted: true, id: alertId, message: `Alert ${alertId} deleted.` };
 }
+
+export async function clearAllVideoAlerts(busId?: string): Promise<{ deleted_count: number; message: string }> {
+  try {
+    const q = busId ? `?bus_id=${busId}` : '';
+    const res = await fetch(`${BASE_URL}/api/video/clear-all${q}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn('clearAllVideoAlerts backend call failed:', e);
+  }
+  return { deleted_count: 0, message: 'Cleared active session detections.' };
+}
+
 
 
 
