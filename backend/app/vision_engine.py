@@ -39,7 +39,22 @@ except ImportError:
     logger.warning("ultralytics not installed — running in OpenCV-only simulation mode.")
 
 # ─── Constants ───────────────────────────────────────────────────────────────
-YOLO_VEHICLE_MODEL_PATH = os.getenv("YOLO_VEHICLE_MODEL_PATH", "yolov8n.pt")
+def _find_yolo_vehicle_weights() -> str:
+    custom = os.getenv("YOLO_VEHICLE_MODEL_PATH")
+    if custom and os.path.exists(custom):
+        return custom
+    candidates = [
+        "yolov8n.pt",
+        os.path.join(os.path.dirname(__file__), "..", "yolov8n.pt"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "yolov8n.pt"),
+        "/app/yolov8n.pt",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return os.path.abspath(p)
+    return "yolov8n.pt"
+
+YOLO_VEHICLE_MODEL_PATH = _find_yolo_vehicle_weights()
 DEFAULT_POTHOLE_PATH = os.path.join(os.path.dirname(__file__), "..", "weights", "pothole_yolov8.pt")
 YOLO_POTHOLE_MODEL_PATH = os.getenv("YOLO_POTHOLE_MODEL_PATH", DEFAULT_POTHOLE_PATH)
 
@@ -717,12 +732,17 @@ def analyze_video(
         frame_results: list[dict] = []
         frame_idx = 0
 
+        # Smart adaptive sampling: limit max analyzed frames to ~30 to ensure completion within 10s on Render
+        max_samples = 30
+        auto_step = max(1, total_frames // max_samples)
+        effective_sample_step = max(sample_every_n_frames, auto_step)
+
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
 
-            if frame_idx % sample_every_n_frames == 0:
+            if frame_idx % effective_sample_step == 0:
                 result = analyzer.analyze_frame(frame, frame_idx, total_frames, fps, route)
                 timestamp_sec = round(frame_idx / max(fps, 1.0), 2)
 

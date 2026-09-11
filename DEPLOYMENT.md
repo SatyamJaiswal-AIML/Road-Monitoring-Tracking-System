@@ -1,5 +1,5 @@
-# UrbanEye AI — Production Deployment Guide
-**Smart India Hackathon 2026 — Problem Statement 26124 (Bharat Electronics Limited)**
+# UrbanEye AI Â— Production Deployment Guide
+**Smart India Hackathon 2026 Â— Problem Statement 26124 (Bharat Electronics Limited)**
 
 This manual guide explains how to deploy the UrbanEye AI full stack into production.  
 *(Note: No deployment commands are automated by this script. Follow each step manually).*
@@ -41,7 +41,7 @@ We recommend **Option A: Split Managed Cloud (Vercel for Dashboard + Railway/Ren
 2. Click **New Project** ? **Deploy from GitHub repo**.
 3. Select your repository and set the **Root Directory** to `/backend`.
 4. Set the build and start settings:
-   * **Build Command:** `pip install -r requirements.txt`
+   * **Build Command:** `pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt`
    * **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
    * **Exposed Port:** `8000` (or leave default `$PORT`)
 5. Configure the **Environment Variables** in the Railway/Render dashboard:

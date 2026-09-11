@@ -1,0 +1,14 @@
+﻿services:
+  - type: web
+    name: urbaneye-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: SPEED_LIMIT_KMPH
+        value: "60.0"

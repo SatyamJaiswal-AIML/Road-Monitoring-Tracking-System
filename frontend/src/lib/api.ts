@@ -68,7 +68,8 @@ export async function testBackendHealth(customUrl?: string): Promise<{ ok: boole
   }
   try {
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 8000);
+    // Allow up to 45s for Render free-tier cold-start wake-up
+    const timeout = setTimeout(() => ctrl.abort(), 45000);
     const res = await fetch(`${url}/health`, { signal: ctrl.signal });
     clearTimeout(timeout);
     if (res.ok) {
@@ -77,6 +78,9 @@ export async function testBackendHealth(customUrl?: string): Promise<{ ok: boole
     }
     return { ok: false, status: res.status, error: `HTTP ${res.status}: ${res.statusText}` };
   } catch (e: any) {
+    if (e.name === 'AbortError') {
+      return { ok: false, error: 'Timed out after 45s. Render server is booting up or unreachable.' };
+    }
     return { ok: false, error: e.message || 'Connection failed (server sleeping, CORS, or offline)' };
   }
 }
@@ -382,20 +386,25 @@ export async function analyzeVideoFile(params: {
     throw new Error(`AI Backend (${res.status}): ${errText || res.statusText}`);
   } catch (err: any) {
     console.warn('[Vision Pipeline] Real backend analysis call failed:', err);
-    // If online on cloud (Vercel) and backend is unreachable (e.g. Render cold start or network failure):
-    const isOnline = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-    if (USE_MOCK || isOnline) {
-      console.info('[Vision Pipeline] Remote backend unreachable. Falling back to high-fidelity Edge AI simulation for uninterrupted UX.');
+    // Only automatically fall back if no URL is set and MOCK mode is strictly enabled
+    if (USE_MOCK && !baseUrl) {
+      console.info('[Vision Pipeline] Mock mode enabled. Running Edge AI client analysis.');
       return generateClientVideoAnalysis(params.file, confidenceThreshold, busId);
     }
+    const isColdStart = err.name === 'AbortError' || err.message?.includes('aborted');
+    if (isColdStart) {
+      throw new Error(
+        `Backend request timed out at ${baseUrl}. Render free tier spins down after inactivity and can take 50–75s to wake up. Please click "Wake Up Render" or retry once awake.`
+      );
+    }
     throw new Error(
-      `AI Vision Backend unreachable at ${baseUrl || 'http://localhost:8000'}. Ensure your FastAPI backend is running: "uvicorn app.main:app --reload --port 8000". Details: ${err.message}`
+      `Real AI Backend at ${baseUrl} failed: ${err.message}. Ensure your Render service is Active (not Suspended) and binds to port $PORT.`
     );
   }
 }
 
 // ─── High-Fidelity Client-Side Edge AI Vision Pipeline ────────────────────────
-async function generateClientVideoAnalysis(
+export async function generateClientVideoAnalysis(
   _file: File,
   confidenceThreshold: number,
   busId: string

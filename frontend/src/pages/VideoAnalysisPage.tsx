@@ -194,11 +194,11 @@ export function VideoAnalysisPage() {
 
   const handleTestBackend = async () => {
     setTestingBackend(true);
-    setTestResult(null);
+    setTestResult({ ok: false, message: 'Waking up / connecting to server (Render cold-start takes ~30-50s)...' });
     try {
       const res = await testBackendHealth(backendInputUrl);
       if (res.ok) {
-        setTestResult({ ok: true, message: `Connected! Backend responded (Status: ${res.status || 200})` });
+        setTestResult({ ok: true, message: `Connected! AI Vision backend is online (Status: ${res.status || 200})` });
       } else {
         setTestResult({ ok: false, message: res.error || 'Could not reach backend.' });
       }
@@ -985,6 +985,67 @@ export function VideoAnalysisPage() {
                 className="text-white/40 hover:text-white px-1.5 text-sm"
               >
                 ✕
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Prominent Global Analysis Alert / Error Banner (Visible across ALL tabs) ── */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mx-6 mt-3 p-4 rounded-2xl bg-[#1a0c12]/95 border border-red-500/40 flex flex-col gap-3 shadow-2xl shrink-0 text-xs text-red-200"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl shrink-0">⚠️</span>
+                <div>
+                  <h4 className="font-bold text-red-100 flex items-center gap-2 text-sm">
+                    Vision Processing Status Note
+                  </h4>
+                  <p className="mt-1 text-red-200/90 leading-relaxed font-mono text-[11px]">
+                    {error}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-300 hover:text-white px-1.5 py-0.5 rounded text-base font-bold shrink-0 bg-white/5 hover:bg-white/10"
+                title="Dismiss warning"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap pt-2 border-t border-red-500/20">
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={isVideoAnalyzing}
+                className="px-3.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-xs font-bold text-red-100 transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <span>🔄</span> Retry Real Backend
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBackendInputUrl(getApiBaseUrl());
+                  setTestResult(null);
+                  setShowBackendModal(true);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-xs font-semibold text-white transition-all flex items-center gap-1.5"
+              >
+                <span>🌐</span> Test / Wake Up Render Server
+              </button>
+              <button
+                type="button"
+                onClick={handleAnalyzeDemoVideo}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-xs font-bold text-emerald-300 transition-all flex items-center gap-1.5 shadow-sm ml-auto"
+              >
+                <span>⚡</span> Run In-Browser Edge AI Mode
               </button>
             </div>
           </motion.div>
@@ -2186,6 +2247,22 @@ export function VideoAnalysisPage() {
                 <span className="text-[10px] text-white/40">
                   Tip: On Render, copy your service URL (e.g. <code className="text-[#4ef2bb]">https://xxxx.onrender.com</code>).
                 </span>
+              </div>
+
+              {/* Render Deployment Best-Practice Settings Reference */}
+              <div className="bg-white/[0.03] p-3 rounded-xl border border-white/[0.06] text-[11px] space-y-1.5 text-white/70">
+                <div className="font-semibold text-white/90 flex items-center gap-1.5">
+                  <span>🚀</span>
+                  <span>Render Backend Configuration Reference:</span>
+                </div>
+                <div className="font-mono text-[10px] space-y-1 bg-black/40 p-2 rounded-lg border border-white/5 text-white/80">
+                  <div>• <strong className="text-white">Root Directory:</strong> <code className="text-[#4ef2bb]">backend</code></div>
+                  <div>• <strong className="text-white">Build Command:</strong> <code className="text-[#4ef2bb]">pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt</code></div>
+                  <div>• <strong className="text-white">Start Command:</strong> <code className="text-[#4ef2bb]">uvicorn app.main:app --host 0.0.0.0 --port $PORT</code></div>
+                </div>
+                <p className="text-[10px] text-white/40 leading-relaxed">
+                  💡 Free-tier Render instances spin down after 15m. Click &quot;Ping /health&quot; to wake it up (~35–50s).
+                </p>
               </div>
 
               {testResult && (
