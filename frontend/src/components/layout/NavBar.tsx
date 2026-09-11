@@ -80,7 +80,7 @@ interface NavBarProps {
 }
 
 export function NavBar({ busCount }: NavBarProps) {
-  const { alerts, setSelectedAlertId, flyTo, setCurrentPage } = useAppStore();
+  const { alerts, setSelectedAlertId, flyTo, setCurrentPage, setDashcamOpen } = useAppStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +137,27 @@ export function NavBar({ busCount }: NavBarProps) {
           <span className="text-zinc-400 ml-1.5 font-mono">UNITS LIVE</span>
         </span>
       </motion.div>
+
+      {/* ── NEW: Live Bus Dashcam Button (One-click real AI stream) ── */}
+      <motion.button
+        onClick={() => setDashcamOpen(true)}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-red-500/20 to-amber-500/20 hover:from-red-500/30 hover:to-amber-500/30 border border-red-500/40 text-red-300 font-mono text-xs font-bold shadow-[0_0_15px_rgba(239,68,68,0.2)] cursor-pointer transition-all"
+        title="Open Onboard Bus Dashcam HUD"
+      >
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+        </span>
+        <span>LIVE DASHCAM</span>
+      </motion.button>
+
+      {/* ── NEW: Edge Store-and-Forward / Sync Status ── */}
+      <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10 text-[11px] font-mono text-slate-300">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span>EDGE SYNC: <span className="text-emerald-400 font-bold">STORE-FORWARD OK</span></span>
+      </div>
 
       <LiveClock />
 

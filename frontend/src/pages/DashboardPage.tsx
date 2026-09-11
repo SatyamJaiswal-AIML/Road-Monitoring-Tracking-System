@@ -7,6 +7,7 @@ import { AlertDetailPanel } from '../components/panels/AlertDetailPanel';
 import { FloatingMetricCards } from '../components/cards/FloatingMetricCards';
 import { CorridorPCIBar } from '../components/common/CorridorPCIBar';
 import { BottomDrawer } from '../components/charts/BottomDrawer';
+import { LiveDashcamModal } from '../components/modals/LiveDashcamModal';
 import type { HeatmapPoint } from '../types';
 
 export function DashboardPage() {
@@ -15,6 +16,7 @@ export function DashboardPage() {
     summary, setSummary, setSummaryLoading, isSummaryLoading,
     selectedAlertId, setSelectedAlertId,
     filterType,
+    isDashcamOpen, setDashcamOpen,
   } = useAppStore();
 
   const [heatmapPoints, setHeatmapPoints] = useState<HeatmapPoint[]>([]);
@@ -85,6 +87,12 @@ export function DashboardPage() {
       <div className="absolute bottom-0 left-0 right-0 z-[900]">
         <BottomDrawer />
       </div>
+
+      {/* ── Live Bus Dashcam HUD Modal ── */}
+      <LiveDashcamModal
+        isOpen={isDashcamOpen}
+        onClose={() => setDashcamOpen(false)}
+      />
     </div>
   );
 }

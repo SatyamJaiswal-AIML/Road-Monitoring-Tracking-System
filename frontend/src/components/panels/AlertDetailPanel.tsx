@@ -15,6 +15,7 @@ import type { Alert, AlertStatus } from '../../types';
 import { AdminAuthModal } from '../modals/AdminAuthModal';
 import { AlertCameraSnapshot } from '../common/AlertCameraSnapshot';
 import { RepairVerificationSlider } from '../common/RepairVerificationSlider';
+import { calculateSLA, estimateRepairCost } from '../../lib/slaAndCost';
 
 interface AlertDetailProps {
   alert: Alert | null;
@@ -226,6 +227,37 @@ export function AlertDetailPanel({ alert, onClose }: AlertDetailProps) {
                 </motion.button>
               </div>
             </div>
+
+            {/* 72-Hour Municipal SLA & PWD Repair Cost Widget */}
+            {(() => {
+              const sla = calculateSLA(alert);
+              const cost = estimateRepairCost(alert);
+              return (
+                <div className="rounded-xl p-3 bg-gradient-to-br from-slate-900 to-black border border-white/10 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300">Contractor 72h SLA:</span>
+                    <span className={cn('text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border', sla.badgeClass)}>
+                      {sla.badgeLabel}
+                    </span>
+                  </div>
+
+                  {alert.type === 'pothole' && (
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Est. Repair Cost (CPWD DSR):</span>
+                        <span className="text-sm font-black text-amber-400">₹{cost.totalCostInr.toLocaleString('en-IN')}</span>
+                        <span className="text-[9px] text-slate-500 block">~{cost.estimatedAreaSqm} m² patch area</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                          IRC:82 Cold Mix
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Status Pill */}
             <div className="flex items-center justify-between pt-1">

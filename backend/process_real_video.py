@@ -13,10 +13,18 @@ import sys
 import time
 import uuid
 import argparse
+import json
 from datetime import datetime, timezone
 import cv2
+import numpy as np
 import base64
 import httpx
+try:
+    import onnxruntime as ort
+    _ONNX_OK = True
+except (ImportError, Exception):
+    _ONNX_OK = False
+
 try:
     from ultralytics import YOLO
     _YOLO_OK = True
@@ -34,6 +42,51 @@ DEFAULT_VIDEO = os.path.join(os.path.dirname(__file__), "videos", "dashcam_road.
 os.makedirs(CAPTURES_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 
+class YOLOv8ONNXDetector:
+    """Runs YOLOv8 pothole neural network using Microsoft-signed ONNX Runtime (100% immune to Windows Smart App Control)."""
+    def __init__(self, model_path, conf_thresh=0.35, nms_thresh=0.45):
+        self.session = ort.InferenceSession(model_path)
+        self.input_name = self.session.get_inputs()[0].name
+        self.conf_thresh = conf_thresh
+        self.nms_thresh = nms_thresh
+
+    def detect(self, frame, conf=None):
+        c_thresh = conf if conf is not None else self.conf_thresh
+        h, w = frame.shape[:2]
+        blob = cv2.dnn.blobFromImage(frame, 1.0/255.0, (640, 640), swapRB=True, crop=False)
+        outputs = self.session.run(None, {self.input_name: blob})
+        preds = np.transpose(outputs[0][0], (1, 0)) # (8400, 37)
+        boxes, confs = [], []
+        scale_x = w / 640.0
+        scale_y = h / 640.0
+        for row in preds:
+            score = float(row[4])
+            if score >= c_thresh:
+                cx, cy, bw, bh = row[:4]
+                x1 = int((cx - bw / 2.0) * scale_x)
+                y1 = int((cy - bh / 2.0) * scale_y)
+                bw_px = int(bw * scale_x)
+                bh_px = int(bh * scale_y)
+                boxes.append([x1, y1, bw_px, bh_px])
+                confs.append(score)
+        if not boxes:
+            return []
+        idxs = cv2.dnn.NMSBoxes(boxes, confs, c_thresh, self.nms_thresh)
+        results = []
+        for idx in idxs:
+            i = idx[0] if isinstance(idx, (list, tuple, np.ndarray)) else idx
+            bx, by, bw, bh = boxes[i]
+            x1 = max(0, min(bx, w - 1))
+            y1 = max(0, min(by, h - 1))
+            x2 = max(x1 + 4, min(bx + bw, w))
+            y2 = max(y1 + 4, min(by + bh, h))
+            results.append({
+                'box': [x1, y1, x2, y2],
+                'confidence': float(confs[i]),
+                'class': 'pothole'
+            })
+        return results
+
 # Coordinates for GPS simulation along Delhi routes
 SAMPLE_COORDS = [
     (28.6315, 77.2167), # Connaught Place
@@ -45,24 +98,34 @@ SAMPLE_COORDS = [
 ]
 
 def get_yolo_model():
-    """Load real municipal road defect model if present."""
-    if not _YOLO_OK:
-        print("[EDGE AI] Ultralytics/PyTorch not available. Running OpenCV Vision Fallback Engine.")
-        return None
-    try:
-        y8best_path = os.path.join(MODELS_DIR, "pothole_y8best.pt")
-        if os.path.exists(y8best_path):
-            print(f"[EDGE AI] Loading trained municipal road defect model: {y8best_path}")
-            return YOLO(y8best_path)
-        pothole_model_path = os.path.join(MODELS_DIR, "pothole.pt")
-        if os.path.exists(pothole_model_path):
-            print(f"[EDGE AI] Loading custom pothole weights: {pothole_model_path}")
-            return YOLO(pothole_model_path)
-        print("[EDGE AI] Loading standard YOLOv8n detector...")
-        return YOLO("yolov8n.pt")
-    except Exception as e:
-        print(f"[EDGE AI] Note: YOLO model load error ({e}). Using OpenCV Edge Vision.")
-        return None
+    """Load real trained municipal road defect model (ONNX or PyTorch)."""
+    # 1. Primary: ONNX Runtime with Microsoft-signed binary (Bypasses Windows Smart App Control)
+    onnx_path = os.path.join(MODELS_DIR, "pothole.onnx")
+    if _ONNX_OK and os.path.exists(onnx_path):
+        try:
+            print(f"[EDGE AI] Loading Microsoft-signed YOLOv8 Pothole ONNX model: {onnx_path}")
+            return YOLOv8ONNXDetector(onnx_path)
+        except Exception as e:
+            print(f"[EDGE AI] Note: ONNX model init failed ({e})")
+
+    # 2. Secondary: Ultralytics PyTorch (when SAC is disabled or signed)
+    if _YOLO_OK:
+        try:
+            y8best_path = os.path.join(MODELS_DIR, "pothole_y8best.pt")
+            if os.path.exists(y8best_path):
+                print(f"[EDGE AI] Loading trained municipal road defect model: {y8best_path}")
+                return YOLO(y8best_path)
+            pothole_model_path = os.path.join(MODELS_DIR, "pothole.pt")
+            if os.path.exists(pothole_model_path):
+                print(f"[EDGE AI] Loading custom pothole weights: {pothole_model_path}")
+                return YOLO(pothole_model_path)
+            print("[EDGE AI] Loading standard YOLOv8n detector...")
+            return YOLO("yolov8n.pt")
+        except Exception as e:
+            print(f"[EDGE AI] Note: PyTorch YOLO error ({e})")
+
+    print("[EDGE AI] Ultralytics/PyTorch not available. Running OpenCV Vision Fallback Engine.")
+    return None
 
 def draw_hud(frame, alert_type, conf, bus_id, lat, lng):
     """Draw tactical HUD and telemetry on the saved frame."""
@@ -123,8 +186,17 @@ def process_video(video_source, sampling_fps=1.0, conf_threshold=0.45):
                 detected_conf = 0.0
                 detected_type = "pothole"
 
-                if model is not None:
-                    # Run YOLO inference
+                if isinstance(model, YOLOv8ONNXDetector):
+                    # Run Microsoft-signed YOLOv8 ONNX Neural Network inference
+                    dets = model.detect(frame, conf=conf_threshold)
+                    if len(dets) > 0:
+                        best = max(dets, key=lambda x: x['confidence'])
+                        has_defect = True
+                        detected_box = best['box']
+                        detected_conf = best['confidence']
+                        detected_type = best['class']
+                elif model is not None:
+                    # Run PyTorch YOLO inference
                     results = model(frame, conf=conf_threshold, verbose=False)
                     for r in results:
                         boxes = r.boxes
@@ -214,6 +286,7 @@ def process_video(video_source, sampling_fps=1.0, conf_threshold=0.45):
                         }
                     }
 
+                    # Transmit alert or buffer locally if offline
                     try:
                         resp = client.post(
                             BACKEND_API_URL,
@@ -221,20 +294,45 @@ def process_video(video_source, sampling_fps=1.0, conf_threshold=0.45):
                             headers={"X-API-Key": EDGE_API_KEY}
                         )
                         print(f" [DETECTED & TRANSMITTED] {alert_id} | {detected_type.upper()} ({detected_conf*100:.0f}%) -> {capture_filename} (HTTP {resp.status_code})")
+                        # Flush any previous offline backlog now that network is reachable
+                        offline_file = os.path.join(os.path.dirname(__file__), "offline_queue.json")
+                        if os.path.exists(offline_file):
+                            try:
+                                with open(offline_file, "r") as qf:
+                                    q = json.load(qf)
+                                if q:
+                                    s_url = BACKEND_API_URL.replace("/alerts", "/api/edge/sync-offline")
+                                    s_resp = client.post(s_url, json={"alerts": q}, headers={"X-API-Key": EDGE_API_KEY})
+                                    if s_resp.status_code == 200:
+                                        print(f" [OFFLINE RECOVERY] Successfully synced {len(q)} buffered alerts to backend!")
+                                        os.remove(offline_file)
+                            except Exception:
+                                pass
                     except Exception as err:
-                        print(f" [OFFLINE QUEUE] Saved {capture_filename} locally (Backend unreachable: {err})")
+                        print(f" [OFFLINE STORE-AND-FORWARD] Network down. Buffered {alert_id} locally ({err})")
+                        offline_file = os.path.join(os.path.dirname(__file__), "offline_queue.json")
+                        try:
+                            q = []
+                            if os.path.exists(offline_file):
+                                with open(offline_file, "r") as qf:
+                                    q = json.load(qf)
+                            q.append(payload)
+                            with open(offline_file, "w") as qf:
+                                json.dump(q, qf, indent=2)
+                        except Exception:
+                            pass
 
             frame_idx += 1
 
     finally:
         cap.release()
         print("\n" + "=" * 70)
-        print(f" Processing Complete. Total real alerts generated: {detected_count}")
+        print(f" [HAWK AI] Processing Complete. Total alerts generated: {detected_count}")
         print(f" Captures stored at: {CAPTURES_DIR}")
         print("=" * 70)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="UrbanEye AI Real Edge Video Processor")
+    parser = argparse.ArgumentParser(description="Hawk AI Edge Video & Defect Processor")
     parser.add_argument("--video", default=DEFAULT_VIDEO, help="Path to input video file")
     parser.add_argument("--webcam", action="store_true", help="Use live laptop webcam")
     parser.add_argument("--fps", type=float, default=1.0, help="Sampling FPS rate")

@@ -14,6 +14,14 @@ const TT = {
   fontSize: 11,
 };
 
+const MOCK_PCI_FORECAST = [
+  { day: 'Day 0', unmaintained: 74, maintained: 74 },
+  { day: 'Day 7', unmaintained: 68, maintained: 77 },
+  { day: 'Day 14', unmaintained: 59, maintained: 81 },
+  { day: 'Day 21', unmaintained: 49, maintained: 84 },
+  { day: 'Day 30', unmaintained: 38, maintained: 86 },
+];
+
 export function BottomDrawer() {
   const [open, setOpen] = useState(false);
 
@@ -26,9 +34,9 @@ export function BottomDrawer() {
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.97 }}
           style={{ willChange: 'transform' }}
-          className="glass border border-white/10 rounded-t-xl px-6 py-1.5 text-xs font-medium text-white/50 hover:text-amber-400 hover:border-amber-500/30 transition-colors cursor-pointer flex items-center gap-2"
+          className="glass border border-white/10 rounded-t-xl px-6 py-1.5 text-xs font-medium text-white/50 hover:text-amber-400 hover:border-amber-500/30 transition-colors cursor-pointer flex items-center gap-2 shadow-lg"
         >
-          <span className="text-[10px] uppercase tracking-widest">Analytics</span>
+          <span className="text-[10px] uppercase tracking-widest font-bold">Transit Analytics & 30-Day PCI Forecast</span>
           <motion.span
             animate={{ rotate: open ? 180 : 0 }}
             transition={{ duration: 0.25 }}
@@ -44,13 +52,13 @@ export function BottomDrawer() {
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 200, opacity: 1 }}
+            animate={{ height: 210, opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
             style={{ willChange: 'transform, opacity' }}
             className="glass border-t border-white/10 overflow-hidden"
           >
-            <div className="grid grid-cols-3 gap-3 p-3 h-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 h-full">
 
               {/* Vehicle density */}
               <div className="flex flex-col gap-1">
@@ -108,6 +116,28 @@ export function BottomDrawer() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* 30-Day PCI Degradation Forecast (NEW) */}
+              <div className="flex flex-col gap-1 bg-black/30 p-2 rounded-xl border border-cyan-500/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">
+                    30D Road PCI Forecast (AI)
+                  </span>
+                  <span className="text-[8px] font-mono text-emerald-400 bg-emerald-500/10 px-1 rounded">
+                    +48 PCI Saved
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={MOCK_PCI_FORECAST}>
+                    <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 8 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[20, 100]} hide />
+                    <Tooltip contentStyle={TT} />
+                    <Line type="monotone" name="Unrepaired Decay" dataKey="unmaintained" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" dot={{ r: 2 }} />
+                    <Line type="monotone" name="Hawk AI Managed" dataKey="maintained" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
             </div>
           </motion.div>
         )}

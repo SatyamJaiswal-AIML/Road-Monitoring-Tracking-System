@@ -12,7 +12,14 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"[DATABASE] Remote Postgres unreachable ({e}). Falling back to local SQLite: sqlite:///./urbaneye.db")
+        engine = create_engine("sqlite:///./urbaneye.db", connect_args={"check_same_thread": False})
+        SessionLocal.configure(bind=engine)
+        Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()

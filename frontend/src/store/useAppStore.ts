@@ -50,6 +50,10 @@ interface AppStore {
   setReplaySpeed: (s: PlaybackSpeed) => void;
   resetReplay: () => void;
 
+  // ── Live Dashcam (NEW) ────────────────────────────────────────────────
+  isDashcamOpen: boolean;
+  setDashcamOpen: (b: boolean) => void;
+
   // ── Video Analysis (NEW) ──────────────────────────────────────────────
   videoResult: VideoAnalysisResult | null;
   setVideoResult: (r: VideoAnalysisResult | null) => void;
@@ -116,6 +120,10 @@ export const useAppStore = create<AppStore>((set) => ({
   setReplaySpeed: (speed) =>
     set((s) => ({ replay: { ...s.replay, speed } })),
   resetReplay: () => set({ replay: DEFAULT_REPLAY }),
+
+  // ── Live Dashcam ──────────────────────────────────────────────────────
+  isDashcamOpen: false,
+  setDashcamOpen: (open) => set({ isDashcamOpen: open }),
 
   // ── Video Analysis ────────────────────────────────────────────────────
   videoResult: null,

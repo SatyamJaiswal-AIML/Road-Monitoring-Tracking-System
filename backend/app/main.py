@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Header, status, Response, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, Query, Header, status, Response, UploadFile, File, Form, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -155,6 +155,41 @@ def create_alert(
     db.commit()
     db.refresh(new_alert)
     return new_alert
+
+@app.post("/api/edge/sync-offline")
+def sync_offline_alerts(
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_edge_api_key)
+):
+    """
+    Bulk ingest buffered offline alerts collected by edge bus units during cellular disconnects.
+    Implements Store-and-Forward architecture for BEL SIH Problem 26124.
+    """
+    queued_alerts = payload.get("alerts", [])
+    synced_count = 0
+    for a_data in queued_alerts:
+        alert_id = a_data.get("id") or f"ALT-SYNC-{str(uuid.uuid4())[:8].upper()}"
+        existing = db.query(AlertModel).filter(AlertModel.id == alert_id).first()
+        if existing:
+            continue
+        meta_dict = a_data.get("meta") or {"verified_by_bus_count": 1}
+        meta_dict["synced_from_offline_cache"] = True
+        new_alert = AlertModel(
+            id=alert_id,
+            type=a_data.get("type", "pothole"),
+            confidence=float(a_data.get("confidence", 0.85)),
+            lat=float(a_data.get("lat", 28.6315)),
+            long=float(a_data.get("long", 77.2167)),
+            timestamp=datetime.utcnow(),
+            bus_id=a_data.get("bus_id", "BUS-OFFLINE"),
+            status="open",
+            meta=meta_dict
+        )
+        db.add(new_alert)
+        synced_count += 1
+    db.commit()
+    return {"status": "ok", "synced_count": synced_count, "total_received": len(queued_alerts)}
 
 @app.get("/alerts", response_model=List[AlertResponse])
 def list_alerts(

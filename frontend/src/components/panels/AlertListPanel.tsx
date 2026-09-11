@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ALERT_VISUALS, STATUS_VISUALS, timeAgo, confidencePct, confidenceColor, cn } from '../../lib/theme';
 import { useAppStore } from '../../store/useAppStore';
 import type { Alert, FilterType } from '../../types';
+import { calculateSLA } from '../../lib/slaAndCost';
 
 // ─── Skeleton row ─────────────────────────────────────────────────────────────
 
@@ -78,6 +79,10 @@ function AlertRow({
           <span className="text-[11px] text-white/35 font-mono">{alert.bus_id}</span>
           <span className="text-white/20">·</span>
           <span className="text-[11px] text-white/35">{timeAgo(alert.timestamp)}</span>
+          <span className="text-white/20">·</span>
+          <span className={cn('text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded border', calculateSLA(alert).badgeClass)}>
+            {calculateSLA(alert).badgeLabel}
+          </span>
           {alert.meta.plate_number && (
             <>
               <span className="text-white/20">·</span>
