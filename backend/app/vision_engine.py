@@ -361,12 +361,25 @@ class RoadVisionAnalyzer:
         self.confidence_threshold = confidence_threshold
         self.vehicle_model: Optional[object] = None
         self.pothole_model: Optional[object] = None
+        self.onnx_pothole_session: Optional[object] = None
+        self.onnx_input_name: Optional[str] = None
         self._init_yolo()
         self.tracker = VehicleTracker()
 
     def _init_yolo(self):
+        # 1. First priority: Load Microsoft-signed ONNX pothole model (Bypasses SmartAppControl)
+        onnx_path = os.path.join(os.path.dirname(__file__), "..", "models", "pothole.onnx")
+        if os.path.exists(onnx_path):
+            try:
+                import onnxruntime as ort
+                self.onnx_pothole_session = ort.InferenceSession(onnx_path)
+                self.onnx_input_name = self.onnx_pothole_session.get_inputs()[0].name
+                logger.info(f"YOLOv8 ONNX pothole model loaded: {onnx_path}")
+            except Exception as e:
+                logger.warning(f"ONNX pothole model init failed: {e}")
+
         if not _YOLO_AVAILABLE:
-            logger.info("YOLO unavailable — using pure OpenCV fallback.")
+            logger.info("YOLO PyTorch unavailable — using ONNX/OpenCV engine.")
             return
 
         # Load vehicle tracking YOLO model
@@ -377,29 +390,79 @@ class RoadVisionAnalyzer:
             logger.warning(f"YOLO vehicle model init failed ({e}), falling back to OpenCV vehicle detection.")
             self.vehicle_model = None
 
-        # Load pre-trained pothole YOLO model
+        # Load pre-trained pothole YOLO PyTorch model if available
         if os.path.exists(YOLO_POTHOLE_MODEL_PATH):
             try:
                 self.pothole_model = YOLO(YOLO_POTHOLE_MODEL_PATH)
                 logger.info(f"Pre-trained YOLOv8 pothole model loaded: {YOLO_POTHOLE_MODEL_PATH}")
             except Exception as e:
-                logger.warning(f"Pothole YOLO init failed ({e}), using OpenCV pothole detector.")
+                logger.warning(f"Pothole YOLO init failed ({e})")
                 self.pothole_model = None
-        else:
-            logger.info(f"Pothole model not found at {YOLO_POTHOLE_MODEL_PATH}, using OpenCV pothole detector.")
 
     def _yolo_pothole_detections(
         self, frame: np.ndarray, frame_idx: int, total_frames: int, route: list[dict]
     ) -> list[dict]:
         """Detect potholes using fine-tuned YOLOv8 weights and rank 3-level severity."""
-        if self.pothole_model is None:
-            return []
-
         h, w = frame.shape[:2]
         roi_y_start = int(h * 0.40)
         roi_area = (h - roi_y_start) * w
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gps = interpolate_gps(route, frame_idx, total_frames)
+
+        detections = []
+
+        # ── ONNX YOLOv8 Inference ──
+        if self.onnx_pothole_session is not None:
+            blob = cv2.dnn.blobFromImage(frame, 1.0/255.0, (640, 640), swapRB=True, crop=False)
+            outputs = self.onnx_pothole_session.run(None, {self.onnx_input_name: blob})
+            preds = np.transpose(outputs[0][0], (1, 0)) # (8400, 37)
+            boxes, confs = [], []
+            scale_x = w / 640.0
+            scale_y = h / 640.0
+            for row in preds:
+                score = float(row[4])
+                if score >= self.confidence_threshold:
+                    cx, cy, bw_raw, bh_raw = row[:4]
+                    x1 = int((cx - bw_raw / 2.0) * scale_x)
+                    y1 = int((cy - bh_raw / 2.0) * scale_y)
+                    bw_px = int(bw_raw * scale_x)
+                    bh_px = int(bh_raw * scale_y)
+                    boxes.append([x1, y1, bw_px, bh_px])
+                    confs.append(score)
+            if boxes:
+                idxs = cv2.dnn.NMSBoxes(boxes, confs, self.confidence_threshold, 0.45)
+                for idx in idxs:
+                    i = idx[0] if isinstance(idx, (list, tuple, np.ndarray)) else idx
+                    bx, by, bw, bh = boxes[i]
+                    x1 = max(0, min(bx, w - 1))
+                    y1 = max(0, min(by, h - 1))
+                    bw = max(1, min(bw, w - x1))
+                    bh = max(1, min(bh, h - y1))
+                    area = bw * bh
+                    area_pct = (area / max(roi_area, 1)) * 100.0
+                    patch = gray[y1:y1+bh, x1:x1+bw]
+                    if patch.size > 0:
+                        laplacian = cv2.Laplacian(patch, cv2.CV_64F)
+                        depth_score = float(np.clip(np.var(laplacian) / 5000.0, 0.0, 1.0))
+                    else:
+                        depth_score = 0.5
+                    severity = _classify_pothole_severity(area_pct, depth_score)
+                    detections.append({
+                        "detection_id": str(uuid.uuid4())[:8].upper(),
+                        "type": "pothole",
+                        "confidence": round(confs[i], 3),
+                        "lat": gps["lat"],
+                        "long": gps["long"],
+                        "frame_idx": frame_idx,
+                        "bounding_box": [x1, y1, bw, bh],
+                        "area_pct": round(area_pct, 3),
+                        "depth_score": round(depth_score, 3),
+                        **severity,
+                    })
+            return detections
+
+        if self.pothole_model is None:
+            return []
 
         results = self.pothole_model(frame, verbose=False, conf=self.confidence_threshold)
         detections = []
@@ -480,7 +543,8 @@ class RoadVisionAnalyzer:
 
         # ── 1. Pothole Detection (Trained YOLOv8 with OpenCV Fallback) ──────
         potholes = self._yolo_pothole_detections(frame, frame_idx, total_frames, route)
-        if not potholes:
+        # ONLY fall back to OpenCV if no neural network model (ONNX or PyTorch) is loaded
+        if not potholes and self.pothole_model is None and self.onnx_pothole_session is None:
             potholes = detect_potholes_opencv(
                 frame, frame_idx, total_frames, route, self.confidence_threshold
             )
