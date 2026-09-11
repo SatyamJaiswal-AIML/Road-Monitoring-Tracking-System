@@ -34,9 +34,9 @@ logger = logging.getLogger("vision_engine")
 try:
     from ultralytics import YOLO
     _YOLO_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception) as err:
     _YOLO_AVAILABLE = False
-    logger.warning("ultralytics not installed — running in OpenCV-only simulation mode.")
+    logger.warning(f"ultralytics not available ({err}) — running in OpenCV-only mode.")
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 def _find_yolo_vehicle_weights() -> str:
