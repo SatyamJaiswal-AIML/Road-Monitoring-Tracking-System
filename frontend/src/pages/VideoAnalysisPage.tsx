@@ -2239,14 +2239,46 @@ export function VideoAnalysisPage() {
                 <label className="text-[11px] font-semibold text-white/70">Backend Service URL</label>
                 <input
                   type="text"
-                  placeholder="https://your-backend.onrender.com"
+                  placeholder="https://your-backend.onrender.com or http://localhost:8000"
                   value={backendInputUrl}
                   onChange={(e) => setBackendInputUrl(e.target.value)}
                   className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder:text-white/30 focus:border-[#4ef2bb] outline-none"
                 />
-                <span className="text-[10px] text-white/40">
-                  Tip: On Render, copy your service URL (e.g. <code className="text-[#4ef2bb]">https://xxxx.onrender.com</code>).
-                </span>
+                <div className="flex items-center justify-between text-[10px] text-white/40">
+                  <span>Quick Presets:</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackendInputUrl('http://localhost:8000');
+                        setTestResult(null);
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded text-[10px] font-mono border transition-all",
+                        backendInputUrl === 'http://localhost:8000'
+                          ? "bg-[#4ef2bb]/20 border-[#4ef2bb]/50 text-[#4ef2bb] font-bold"
+                          : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                      )}
+                    >
+                      💻 Localhost (8000)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackendInputUrl('');
+                        setTestResult(null);
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded text-[10px] font-mono border transition-all",
+                        !backendInputUrl
+                          ? "bg-amber-400/20 border-amber-400/50 text-amber-300 font-bold"
+                          : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                      )}
+                    >
+                      ⚡ Edge AI
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Render Deployment Best-Practice Settings Reference */}

@@ -23,6 +23,12 @@ import { DEMO_POTHOLE_BASE64 } from './demoAlertImages';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
+export function isLocalEnvironment(): boolean {
+  if (typeof window === 'undefined') return true;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.startsWith('192.168.');
+}
+
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('urbaneye_api_url') || localStorage.getItem('VITE_API_BASE_URL');
@@ -34,7 +40,11 @@ export function getApiBaseUrl(): string {
   if (env && env.trim() !== '') {
     return env.trim().replace(/\/+$/, '');
   }
-  // When running on HTTPS (like Vercel) and no backend URL is set, do not default to insecure http://localhost:8000
+  // When running locally, always target local FastAPI backend at port 8000
+  if (isLocalEnvironment()) {
+    return 'http://localhost:8000';
+  }
+  // When running on remote cloud HTTPS (like Vercel) and no backend URL is set, return empty
   if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
     return '';
   }
@@ -54,11 +64,15 @@ export function setApiBaseUrl(url: string) {
 
 export function isMixedContentBlocked(): boolean {
   if (typeof window === 'undefined') return false;
+  // Local environment is NEVER mixed-content blocked
+  if (isLocalEnvironment()) return false;
+
+  // Remote cloud deployments (e.g. *.vercel.app on https://):
   const baseUrl = getApiBaseUrl();
   const isHttps = window.location.protocol === 'https:';
   if (!baseUrl) return true;
-  const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-  return isHttps && isLocalhost;
+  const isLocalBackend = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+  return isHttps && isLocalBackend;
 }
 
 export async function testBackendHealth(customUrl?: string): Promise<{ ok: boolean; status?: number; data?: any; error?: string }> {
