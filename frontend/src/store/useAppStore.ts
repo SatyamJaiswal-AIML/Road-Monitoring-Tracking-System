@@ -78,7 +78,26 @@ export const useAppStore = create<AppStore>((set) => ({
 
   // ── Alerts ────────────────────────────────────────────────────────────
   alerts: [],
-  setAlerts: (alerts) => set({ alerts }),
+  setAlerts: (newAlerts) =>
+    set((s) => {
+      const alertMap = new Map<string, Alert>();
+      for (const a of newAlerts) {
+        alertMap.set(a.id, a);
+      }
+      for (const existing of s.alerts) {
+        if (!alertMap.has(existing.id)) {
+          alertMap.set(existing.id, existing);
+        } else {
+          const incoming = alertMap.get(existing.id)!;
+          const existingImg = existing.meta?.image_url || existing.image_url;
+          const incomingImg = incoming.meta?.image_url || incoming.image_url;
+          if (!incomingImg && existingImg) {
+            incoming.meta = { ...incoming.meta, image_url: existingImg };
+          }
+        }
+      }
+      return { alerts: Array.from(alertMap.values()) };
+    }),
   updateAlertStatus: (id, status) =>
     set((s) => ({
       alerts: s.alerts.map((a) => (a.id === id ? { ...a, status } : a)),

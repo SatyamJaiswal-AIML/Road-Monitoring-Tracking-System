@@ -31,22 +31,29 @@ export function AlertCameraSnapshot({
   const initialUrl = alert.meta?.image_url || alert.image_url || fallbackBase64;
 
   const [imgSrc, setImgSrc] = useState<string | undefined>(initialUrl);
-  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(true);
   const [imgError, setImgError] = useState(!initialUrl);
 
   useEffect(() => {
     const nextUrl = alert.meta?.image_url || alert.image_url || fallbackBase64;
-    setImgSrc(nextUrl);
-    setImgLoaded(false);
-    setImgError(!nextUrl);
-  }, [alert, fallbackBase64]);
+    if (nextUrl && nextUrl !== imgSrc) {
+      setImgSrc(nextUrl);
+      setImgLoaded(true);
+      setImgError(false);
+    } else if (!nextUrl && !imgSrc) {
+      setImgError(true);
+    }
+  }, [alert.id, alert.meta?.image_url, alert.image_url, fallbackBase64]);
 
   const handleImgError = () => {
     if (fallbackBase64 && imgSrc !== fallbackBase64) {
       setImgSrc(fallbackBase64);
+      setImgLoaded(true);
       return;
     }
-    setImgError(true);
+    if (!imgSrc || !imgSrc.startsWith('data:')) {
+      setImgError(true);
+    }
   };
 
   const hasRealCapture = Boolean(imgSrc) && !imgError;
@@ -62,25 +69,14 @@ export function AlertCameraSnapshot({
         className={`relative w-full rounded-lg overflow-hidden border border-white/10 bg-zinc-950 select-none group ${className}`}
         style={{ height }}
       >
-        {/* Loading spinner */}
-        {!imgLoaded && (
-          <div className="absolute inset-0 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black flex items-center justify-center">
-            <div className="flex flex-col items-center gap-1.5 text-zinc-500 text-[10px]">
-              <div className="w-4 h-4 border-2 border-zinc-600 border-t-amber-400 rounded-full animate-spin" />
-              <span>Loading Edge Capture...</span>
-            </div>
-          </div>
-        )}
-
         {/* Real YOLO-processed image */}
         <img
           src={imgSrc}
           alt={`AI Detection: ${alert.type}`}
-          loading="lazy"
           onLoad={() => setImgLoaded(true)}
           onError={handleImgError}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${
-            imgLoaded ? 'opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500' : 'opacity-0'
+          className={`w-full h-full object-cover transition-opacity duration-300 group-hover:scale-105 transition-all duration-500 ${
+            imgLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-85'
           }`}
         />
 
