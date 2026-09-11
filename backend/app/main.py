@@ -49,7 +49,7 @@ DEFAULT_DELHI_ROUTE = [
 
 # ─── App setup ────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="UrbanEye AI — Road Monitoring Platform",
+    title="Hawk AI — Road Monitoring Platform",
     description=(
         "SIH Problem Statement 26124 (BEL) — Edge-AI Onboard Road Monitoring "
         "Framework integrated with a Centralized Urban Intelligence Platform"
@@ -617,14 +617,26 @@ def clear_all_video_alerts(bus_id: Optional[str] = Query(default=None), db: Sess
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  Health Check
+#  Reset & Health Check
 # ═════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/alerts/reset-seed", tags=["Alerts"])
+def reset_seed_alerts(db: Session = Depends(get_db)):
+    """
+    Purge all test alerts and re-seed clean baseline municipal road alerts.
+    """
+    from seed_data import seed
+    try:
+        seed(force_clean=True)
+        return {"status": "ok", "message": "Database successfully refreshed and seeded with clean baseline alerts."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 def health_check(db: Session = Depends(get_db)):
     try:
         db.execute(func.now())
-        return {"status": "ok", "database": "connected", "service": "UrbanEye AI Backend v2.0"}
+        return {"status": "ok", "database": "connected", "service": "Hawk AI Backend v2.0"}
     except Exception as e:
-        return {"status": "error", "database": str(e), "service": "UrbanEye AI Backend v2.0"}
+        return {"status": "error", "database": str(e), "service": "Hawk AI Backend v2.0"}
 
