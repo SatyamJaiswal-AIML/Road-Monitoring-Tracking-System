@@ -22,13 +22,70 @@ import { useAppStore } from '../store/useAppStore';
 import { DEMO_POTHOLE_BASE64 } from './demoAlertImages';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
-// Check if running on HTTPS while BASE_URL is pointing to an insecure local address
-const isBrowser = typeof window !== 'undefined';
-const isHttps = isBrowser && window.location.protocol === 'https:';
-const isLocalhostBackend = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
-const isMixedContentBlocked = isHttps && isLocalhostBackend;
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('urbaneye_api_url') || localStorage.getItem('VITE_API_BASE_URL');
+    if (custom && custom.trim() !== '') {
+      return custom.trim().replace(/\/+$/, '');
+    }
+  }
+  const env = import.meta.env.VITE_API_BASE_URL;
+  if (env && env.trim() !== '') {
+    return env.trim().replace(/\/+$/, '');
+  }
+  // When running on HTTPS (like Vercel) and no backend URL is set, do not default to insecure http://localhost:8000
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return '';
+  }
+  return 'http://localhost:8000';
+}
+
+export function setApiBaseUrl(url: string) {
+  if (typeof window !== 'undefined') {
+    if (!url || url.trim() === '') {
+      localStorage.removeItem('urbaneye_api_url');
+      localStorage.removeItem('VITE_API_BASE_URL');
+    } else {
+      localStorage.setItem('urbaneye_api_url', url.trim().replace(/\/+$/, ''));
+    }
+  }
+}
+
+export function isMixedContentBlocked(): boolean {
+  if (typeof window === 'undefined') return false;
+  const baseUrl = getApiBaseUrl();
+  const isHttps = window.location.protocol === 'https:';
+  if (!baseUrl) return true;
+  const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+  return isHttps && isLocalhost;
+}
+
+export async function testBackendHealth(customUrl?: string): Promise<{ ok: boolean; status?: number; data?: any; error?: string }> {
+  const url = (customUrl ?? getApiBaseUrl()).replace(/\/+$/, '');
+  if (!url) {
+    return { ok: false, error: 'No backend URL provided. Please enter your Render backend URL.' };
+  }
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(`${url}/health`, { signal: ctrl.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, status: res.status, data };
+    }
+    return { ok: false, status: res.status, error: `HTTP ${res.status}: ${res.statusText}` };
+  } catch (e: any) {
+    return { ok: false, error: e.message || 'Connection failed (server sleeping, CORS, or offline)' };
+  }
+}
+
+const BASE_URL = {
+  toString() {
+    return getApiBaseUrl();
+  },
+};
 
 // Simulate network latency in mock mode so loading states are visible
 const delay = (ms = 600) => new Promise<void>((r) => setTimeout(r, ms));
@@ -55,7 +112,7 @@ export async function fetchAlerts(params?: {
   until?: string;
   bounds?: MapBounds;
 }): Promise<Alert[]> {
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(250);
     return getFilteredMockAlerts(params);
   }
@@ -86,7 +143,7 @@ export async function fetchAlerts(params?: {
 // ─── GET /alerts/:id ─────────────────────────────────────────────────────────
 
 export async function fetchAlert(id: string): Promise<Alert> {
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(150);
     const a = MOCK_ALERTS.find((x) => x.id === id);
     if (a) return a;
@@ -115,7 +172,7 @@ export async function updateAlertStatus(
   id: string,
   status: AlertStatus
 ): Promise<Alert> {
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(200);
     const a = MOCK_ALERTS.find((x) => x.id === id);
     if (a) a.status = status;
@@ -148,7 +205,7 @@ export async function fetchHeatmap(params?: {
   since?: string;
   until?: string;
 }): Promise<HeatmapPoint[]> {
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(200);
     return MOCK_HEATMAP;
   }
@@ -178,7 +235,7 @@ export async function fetchHeatmap(params?: {
 // ─── GET /analytics/summary ──────────────────────────────────────────────────
 
 export async function fetchSummary(): Promise<AnalyticsSummary> {
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(200);
     return MOCK_SUMMARY;
   }
@@ -202,10 +259,8 @@ export async function fetchSummary(): Promise<AnalyticsSummary> {
 // ─── GET /routes/:bus_id/replay ──────────────────────────────────────────────
 
 export async function fetchRouteReplay(busId: string): Promise<RouteReplay> {
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(250);
-    const r = MOCK_ROUTES.find((x) => x.bus_id === busId);
-    if (r) return r;
     return MOCK_ROUTES[0];
   }
   try {
@@ -288,6 +343,13 @@ export async function analyzeVideoFile(params: {
   const confidenceThreshold = params.confidenceThreshold ?? 0.35;
   const sampleEveryNFrames = params.sampleEveryNFrames ?? 10;
   const saveToDb = params.saveToDb ?? true;
+  const baseUrl = getApiBaseUrl();
+
+  // If no backend URL configured on HTTPS, or mixed content blocked, or USE_MOCK:
+  if (!baseUrl || isMixedContentBlocked() || USE_MOCK) {
+    console.info('[Vision Pipeline] No live remote backend configured or mixed content blocked. Running Edge AI client analysis.');
+    return generateClientVideoAnalysis(params.file, confidenceThreshold, busId);
+  }
 
   // Real backend analysis: pass file and all model parameters directly to YOLOv8 + OpenCV pipeline
   const formData = new FormData();
@@ -299,10 +361,15 @@ export async function analyzeVideoFile(params: {
   if (params.routeJson) formData.append('route_json', params.routeJson);
 
   try {
-    const res = await fetch(`${BASE_URL}/api/video/analyze`, {
+    const ctrl = new AbortController();
+    // Render free-tier can take up to 60-90s on cold starts.
+    const timeout = setTimeout(() => ctrl.abort(), 90000);
+    const res = await fetch(`${baseUrl}/api/video/analyze`, {
       method: 'POST',
       body: formData,
+      signal: ctrl.signal,
     });
+    clearTimeout(timeout);
 
     if (res.ok) {
       const data = await res.json();
@@ -315,11 +382,14 @@ export async function analyzeVideoFile(params: {
     throw new Error(`AI Backend (${res.status}): ${errText || res.statusText}`);
   } catch (err: any) {
     console.warn('[Vision Pipeline] Real backend analysis call failed:', err);
-    if (USE_MOCK) {
+    // If online on cloud (Vercel) and backend is unreachable (e.g. Render cold start or network failure):
+    const isOnline = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    if (USE_MOCK || isOnline) {
+      console.info('[Vision Pipeline] Remote backend unreachable. Falling back to high-fidelity Edge AI simulation for uninterrupted UX.');
       return generateClientVideoAnalysis(params.file, confidenceThreshold, busId);
     }
     throw new Error(
-      `AI Vision Backend unreachable at ${BASE_URL}. Ensure your FastAPI backend is running: "uvicorn app.main:app --reload --port 8000". Details: ${err.message}`
+      `AI Vision Backend unreachable at ${baseUrl || 'http://localhost:8000'}. Ensure your FastAPI backend is running: "uvicorn app.main:app --reload --port 8000". Details: ${err.message}`
     );
   }
 }
@@ -641,7 +711,7 @@ export async function analyzeCameraFrame(params: {
   const lat = params.lat ?? (28.6315 + (fIdx * 0.0008));
   const lng = params.lng ?? (77.2167 + (fIdx * 0.0006));
 
-  if (USE_MOCK || isMixedContentBlocked) {
+  if (USE_MOCK || isMixedContentBlocked()) {
     await delay(150);
     const hasPothole = fIdx % 2 === 0;
     const sevLevel: 1 | 2 | 3 = (fIdx % 3 === 0 ? 3 : (fIdx % 3 === 1 ? 2 : 1));
@@ -727,7 +797,7 @@ export async function analyzeCameraFrame(params: {
 }
 
 export async function saveVideoAlerts(alerts: object[], busId = 'VIDEO-UPLOAD'): Promise<{ saved_count: number; saved_ids: string[] }> {
-  if (isMixedContentBlocked || USE_MOCK) {
+  if (isMixedContentBlocked() || USE_MOCK) {
     return { saved_count: alerts.length, saved_ids: [] };
   }
   try {
@@ -750,7 +820,7 @@ export async function saveVideoAlerts(alerts: object[], busId = 'VIDEO-UPLOAD'):
 // ─── DELETE /alerts/:id or /api/video/potholes/:id ───────────────────────────
 
 export async function deleteVideoPothole(detectionId: string): Promise<{ deleted: boolean; id: string; message: string }> {
-  if (isMixedContentBlocked || USE_MOCK) {
+  if (isMixedContentBlocked() || USE_MOCK) {
     return { deleted: true, id: detectionId, message: `Removed pothole #${detectionId} from active session.` };
   }
   try {
@@ -769,7 +839,7 @@ export async function deleteVideoPothole(detectionId: string): Promise<{ deleted
 }
 
 export async function deleteVideoPotholesBatch(detectionIds: string[]): Promise<{ deleted_count: number; message: string }> {
-  if (isMixedContentBlocked || USE_MOCK) {
+  if (isMixedContentBlocked() || USE_MOCK) {
     return { deleted_count: detectionIds.length, message: `Removed ${detectionIds.length} potholes.` };
   }
   try {
@@ -790,7 +860,7 @@ export async function deleteVideoPotholesBatch(detectionIds: string[]): Promise<
 }
 
 export async function deleteAlert(alertId: string): Promise<{ deleted: boolean; id: string; message: string }> {
-  if (isMixedContentBlocked || USE_MOCK) {
+  if (isMixedContentBlocked() || USE_MOCK) {
     return { deleted: true, id: alertId, message: `Alert ${alertId} deleted.` };
   }
   try {

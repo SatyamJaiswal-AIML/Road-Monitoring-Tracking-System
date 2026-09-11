@@ -11,6 +11,9 @@ import {
   deleteVideoPotholesBatch,
   saveVideoAlerts,
   clearAllVideoAlerts,
+  getApiBaseUrl,
+  setApiBaseUrl,
+  testBackendHealth,
 } from '../lib/api';
 import {
   SEVERITY_VISUALS,
@@ -174,6 +177,37 @@ export function VideoAnalysisPage() {
   // Screen size & layout mode
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
   const [showInspector, setShowInspector] = useState<boolean>(true);
+
+  // Dynamic Backend URL Configuration
+  const [backendUrl, setBackendUrlState] = useState<string>(getApiBaseUrl());
+  const [showBackendModal, setShowBackendModal] = useState<boolean>(false);
+  const [backendInputUrl, setBackendInputUrl] = useState<string>(getApiBaseUrl());
+  const [testingBackend, setTestingBackend] = useState<boolean>(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleSaveBackendUrl = () => {
+    setApiBaseUrl(backendInputUrl);
+    setBackendUrlState(getApiBaseUrl());
+    setShowBackendModal(false);
+    setError(null);
+  };
+
+  const handleTestBackend = async () => {
+    setTestingBackend(true);
+    setTestResult(null);
+    try {
+      const res = await testBackendHealth(backendInputUrl);
+      if (res.ok) {
+        setTestResult({ ok: true, message: `Connected! Backend responded (Status: ${res.status || 200})` });
+      } else {
+        setTestResult({ ok: false, message: res.error || 'Could not reach backend.' });
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, message: e.message || 'Connection failed.' });
+    } finally {
+      setTestingBackend(false);
+    }
+  };
 
   // Database save & delete state
   const [isSavingDb, setIsSavingDb] = useState<boolean>(false);
@@ -844,6 +878,23 @@ export function VideoAnalysisPage() {
               )}
             </div>
           )}
+
+          {/* Backend Status / Configuration Pill */}
+          <button
+            onClick={() => {
+              setBackendInputUrl(getApiBaseUrl());
+              setTestResult(null);
+              setShowBackendModal(true);
+            }}
+            className="px-2.5 py-1.5 rounded-xl text-xs font-mono transition-all border flex items-center gap-1.5 bg-white/5 border-white/10 hover:border-white/20 text-white/80 hover:text-white"
+            title="Configure Backend API URL (Render or Localhost)"
+          >
+            <span className={backendUrl ? "w-2 h-2 rounded-full bg-emerald-400 animate-pulse" : "w-2 h-2 rounded-full bg-amber-400"} />
+            <span className="text-[11px] truncate max-w-[150px]">
+              {backendUrl ? (backendUrl.includes('render') ? 'Render Backend' : backendUrl.replace(/^https?:\/\//, '')) : 'Edge AI (In-Browser)'}
+            </span>
+            <span className="text-[10px] text-white/40">⚙️</span>
+          </button>
 
           <button
             onClick={() => setMainView(mainView === 'upload' ? 'video' : 'upload')}
@@ -1818,11 +1869,34 @@ export function VideoAnalysisPage() {
               </div>
             </div>
 
-            <div className="text-[11px] text-white/50 bg-white/[0.02] px-3 py-2 rounded-xl border border-white/[0.06] flex items-center justify-between">
-              <span>🗄️ Target Database: <strong className="text-white">SQLite (backend/urbaneye.db)</strong></span>
-              <span className={autoSaveDb ? "text-emerald-400 font-semibold" : "text-amber-300 font-semibold"}>
-                {autoSaveDb ? "✓ Will Save to Database" : "⚠️ Memory Only (Not Saved)"}
-              </span>
+            {/* Target Database & Live Backend Info */}
+            <div className="flex flex-col gap-1.5 bg-white/[0.02] p-3 rounded-xl border border-white/[0.06] text-[11px]">
+              <div className="flex items-center justify-between">
+                <span className="text-white/60">🗄️ Target Database: <strong className="text-white">SQLite (backend/urbaneye.db)</strong></span>
+                <span className={autoSaveDb ? "text-emerald-400 font-semibold" : "text-amber-300 font-semibold"}>
+                  {autoSaveDb ? "✓ Will Save to Database" : "⚠️ Memory Only (Not Saved)"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                <span className="text-white/60 flex items-center gap-1.5">
+                  <span className={backendUrl ? "w-1.5 h-1.5 rounded-full bg-emerald-400" : "w-1.5 h-1.5 rounded-full bg-amber-400"} />
+                  <span>AI Backend:</span>
+                  <strong className="text-white font-mono text-[10px]">
+                    {backendUrl ? backendUrl : 'Edge AI In-Browser Engine'}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBackendInputUrl(getApiBaseUrl());
+                    setTestResult(null);
+                    setShowBackendModal(true);
+                  }}
+                  className="text-[#4ef2bb] hover:underline font-semibold text-[10px] flex items-center gap-1"
+                >
+                  <span>⚙️ Connect Render URL</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 bg-white/[0.02] p-3 rounded-xl border border-white/[0.06] text-xs">
@@ -1861,9 +1935,32 @@ export function VideoAnalysisPage() {
               {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-400"
+                  className="rounded-xl bg-red-500/10 border border-red-500/30 p-3.5 flex flex-col gap-2.5 text-xs text-red-300 shadow-sm"
                 >
-                  {error}
+                  <div className="flex items-start gap-2">
+                    <span className="text-base leading-none">⚠️</span>
+                    <div className="flex-1 leading-relaxed">{error}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-red-500/20">
+                    <button
+                      type="button"
+                      onClick={handleAnalyzeDemoVideo}
+                      className="px-3 py-1.5 rounded-lg bg-[#4ef2bb]/20 hover:bg-[#4ef2bb]/30 border border-[#4ef2bb]/40 text-xs font-bold text-[#4ef2bb] transition-all flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span>⚡</span> Run In-Browser Edge AI Analysis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackendInputUrl(getApiBaseUrl());
+                        setTestResult(null);
+                        setShowBackendModal(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white transition-all flex items-center gap-1.5"
+                    >
+                      <span>🔗</span> Set Render Backend URL
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -2048,6 +2145,99 @@ export function VideoAnalysisPage() {
               ✕
             </button>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Backend Connection Modal ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showBackendModal && (
+          <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="max-w-md w-full bg-[#0a0f1d] border border-white/15 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>🌐</span> Backend API Connection
+                </h3>
+                <button
+                  onClick={() => setShowBackendModal(false)}
+                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-white/60 leading-relaxed">
+                Connect your live FastAPI vision backend (e.g. deployed on Render) or use the in-browser Edge AI simulation mode.
+              </p>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-white/70">Backend Service URL</label>
+                <input
+                  type="text"
+                  placeholder="https://your-backend.onrender.com"
+                  value={backendInputUrl}
+                  onChange={(e) => setBackendInputUrl(e.target.value)}
+                  className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder:text-white/30 focus:border-[#4ef2bb] outline-none"
+                />
+                <span className="text-[10px] text-white/40">
+                  Tip: On Render, copy your service URL (e.g. <code className="text-[#4ef2bb]">https://xxxx.onrender.com</code>).
+                </span>
+              </div>
+
+              {testResult && (
+                <div
+                  className={cn(
+                    'p-2.5 rounded-xl text-xs font-mono flex items-center gap-2 border',
+                    testResult.ok
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                  )}
+                >
+                  <span>{testResult.ok ? '✓' : '⚠️'}</span>
+                  <span className="truncate">{testResult.message}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={handleTestBackend}
+                  disabled={testingBackend || !backendInputUrl}
+                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 transition-all flex items-center gap-1.5"
+                >
+                  {testingBackend && <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />}
+                  <span>{testingBackend ? 'Pinging /health…' : 'Ping /health'}</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBackendInputUrl('');
+                      setApiBaseUrl('');
+                      setBackendUrlState('');
+                      setShowBackendModal(false);
+                      setError(null);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-white/60 hover:text-white"
+                  >
+                    Use Edge AI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveBackendUrl}
+                    className="px-4 py-2 rounded-xl bg-[#4ef2bb] hover:bg-[#3de0aa] text-[#060910] text-xs font-bold transition-all shadow-md"
+                  >
+                    Save &amp; Connect
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
